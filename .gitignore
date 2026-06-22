@@ -1,0 +1,21 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Currently excluded services
+services/auth-service/
+# services/user-service/
+# services/rag-service/
+# services/ingest-service/
+services/document-processor-service/
+services/notification-service/
+services/audit-service/
+services/api-gateway/
+
+# Virtual environments
+.venv
+.env

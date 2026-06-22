@@ -1,0 +1,30 @@
+uvicorn[standard]
+fastapi[standard]
+httpx
+
+python-dotenv
+pydantic-settings
+
+sqlalchemy
+asyncpg
+alembic
+
+aiokafka
+# kafka-python   # or aiokafka or confluent-kafka
+redis
+tenacity
+
+orjson
+
+grpcio
+grpcio-tools
+protobuf
+
+debugpy
+
+# -e ../../packages/shared
+# -e ../../packages/contracts
+# -e ../../
+
+git+https://github.com/judeakinwale/rag_packages.git@main
+

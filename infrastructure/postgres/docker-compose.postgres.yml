@@ -1,0 +1,63 @@
+networks:
+  backend:
+  postgres:
+
+services:
+  postgres:
+    # see https://hub.docker.com/_/postgres for list of postgres image versions on docker hub
+    image: postgres:17.4
+    container_name: postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: ${PG_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER} -d ${PG_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [backend, postgres]
+
+  pgadmin:
+    # see https://hub.docker.com/r/dpage/pgadmin4
+    image: dpage/pgadmin4:9.15 # To download the latest image
+    container_name: pgadmin
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      # - pgadmin_config:/pgadmin4
+    env_file:
+      - .env
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5433:80" # HOST_PORT:CONTAINER_PORT
+    networks: [backend, postgres]
+
+  metabase:
+    # see https://hub.docker.com/r/metabase/metabase and https://www.metabase.com/docs/latest/installation-and-operation/running-metabase-on-docker
+    image: metabase/metabase:v0.62.1.x # To download the latest image
+    container_name: metabase
+    depends_on:
+      - postgres
+    ports:
+      - "5434:3000"
+    networks: [backend, postgres]
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+  # pgadmin_config:
+  #   driver: local

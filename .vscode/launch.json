@@ -1,0 +1,54 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach Auth Service",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": { "host": "localhost", "port": 5678 },
+      "justMyCode": true
+    },
+    {
+      "name": "Attach User Service",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": { "host": "localhost", "port": 5679 },
+      "justMyCode": true
+    },
+    {
+      "name": "Attach Rag Service",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": { "host": "localhost", "port": 5680 },
+      "justMyCode": true
+    },
+    {
+      "name": "Attach Ingest Service",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": { "host": "localhost", "port": 5681 },
+      "justMyCode": true
+    },
+    {
+      "name": "Attach Document Processor-service",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": { "host": "localhost", "port": 5682 },
+      "justMyCode": true
+    },
+    {
+      "name": "Attach Notification Service",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": { "host": "localhost", "port": 5683 },
+      "justMyCode": true
+    },
+    {
+      "name": "Attach Audit Service",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": { "host": "localhost", "port": 5684 },
+      "justMyCode": true
+    }
+  ]
+}

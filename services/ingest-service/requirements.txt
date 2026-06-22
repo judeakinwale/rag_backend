@@ -1,0 +1,25 @@
+fastapi[standard]
+uvicorn[standard]
+httpx
+
+python-dotenv
+pydantic-settings
+
+sqlalchemy
+asyncpg
+alembic
+
+kafka-python   # or confluent-kafka
+redis
+tenacity
+
+orjson
+
+grpcio
+grpcio-tools
+protobuf
+
+debugpy
+# -e ../../packages/shared
+# -e ../../packages/contracts
+-e ../../
