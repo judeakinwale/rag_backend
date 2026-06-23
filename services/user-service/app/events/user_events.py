@@ -1,14 +1,14 @@
-from pydantic import BaseModel
+from app.events.shared_events import BaseEvent
 
 
-class UserCreatedEvent(BaseModel):
-    id: str
+class UserCreatedEvent(BaseEvent):
+    id: int
     email: str
     name: str
 
 
 class UserUpdatedEvent(UserCreatedEvent):
-    pass
+    updated: list[str] | None = None  # list of updated fields
 
 
 class UserDeletedEvent(UserCreatedEvent):

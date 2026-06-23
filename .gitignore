@@ -11,7 +11,7 @@ services/auth-service/
 # services/user-service/
 # services/rag-service/
 # services/ingest-service/
-services/document-processor-service/
+# services/document-processor-service/
 services/notification-service/
 services/audit-service/
 services/api-gateway/

@@ -1,9 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.core.config import settings
-
-# from app.kafka_producer import producer
-# from app.kafka_consumer import consumer
+from app.core.db import engine
 from app.kafka_consumer import TOPICS, HANDLERS
 from rag_packages.shared.kafka.producer import KafkaProducer
 from rag_packages.shared.kafka.consumer import KafkaConsumer
@@ -43,3 +41,5 @@ async def lifespan(app: FastAPI):
     if kafka_consumer:
         await kafka_consumer.stop()
         app.state.kafka_consumer = None
+
+    await engine.dispose()

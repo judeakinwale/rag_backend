@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
+# TODO: move this to rag_packages
 class UnitOfWork:
     def __init__(self, session: AsyncSession):
         self.session = session

@@ -1,12 +1,35 @@
-from app.kafka_producer import producer
+from rag_packages.shared.kafka.producer import KafkaProducer
+from app.events.user_events import UserCreatedEvent, UserUpdatedEvent, UserDeletedEvent
 
 
 class UserProducer:
-    async def user_created(self, user):
-        await producer.send(
+    def __init__(self, producer: KafkaProducer):
+        self.producer = producer
+
+    async def test(self, event: dict, key: str | None = None):
+        await self.producer.publish(
+            "test.topic",
+            event,
+            key,
+        )
+
+    async def user_created(self, event: UserCreatedEvent, key: str | None = None):
+        await self.producer.publish(
             "user.created",
-            {
-                "id": user.id,
-                "email": user.email,
-            },
+            event.model_dump(),
+            key,
+        )
+
+    async def user_updated(self, event: UserUpdatedEvent, key: str | None = None):
+        await self.producer.publish(
+            "user.updated",
+            event.model_dump(),
+            key,
+        )
+
+    async def user_deleted(self, event: UserDeletedEvent, key: str | None = None):
+        await self.producer.publish(
+            "user.deleted",
+            event.model_dump(),
+            key,
         )

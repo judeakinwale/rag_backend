@@ -12,7 +12,7 @@ from rag_packages.shared.logging.packages import enable_package_logging
 from rag_packages.shared.logging.config import setup_logging
 
 
-setup_logging()
+setup_logging(logging.INFO)
 enable_package_logging(level=logging.INFO, formatter="json")
 
 # logger = logging.getLogger(__name__)
@@ -45,14 +45,10 @@ def health():
 
 @app.post("/emit-test-event")
 async def emit(request: Request):
-    # await publish_event("test.topic", {"service": "user-service", "message": "hello"})
-
     msg = {"service": "user-service", "message": "hello"}
-    await request.app.state.kafka_producer.publish(
-        "test.topic", msg
-    )
-    print(f"Published message to test.topic: {msg}")
-    
+    producer = request.app.state.kafka_producer
+    await producer.publish("test.topic", msg)
+
     return {"sent": True}
 
 

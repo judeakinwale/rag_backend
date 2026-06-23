@@ -1,4 +1,8 @@
-from pydantic_settings import BaseSettings
+from pathlib import Path
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# project's base directory
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):
@@ -15,9 +19,14 @@ class Settings(BaseSettings):
 
     KAFKA_BOOTSTRAP_SERVERS: str
 
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
+    model_config = SettingsConfigDict(
+        env_file=BASE_DIR / ".env",  # ".env"
+        extra="ignore",
+    )
+
+    # class Config:
+    #     env_file = BASE_DIR / ".env"  # ".env"
+    #     extra = "ignore"
 
 
 settings = Settings()

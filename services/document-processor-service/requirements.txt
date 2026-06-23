@@ -1,5 +1,5 @@
-uvicorn[standard]
 fastapi[standard]
+uvicorn[standard]
 httpx
 
 python-dotenv
@@ -9,9 +9,7 @@ sqlalchemy
 asyncpg
 alembic
 
-argon2-cffi # for password hashing and verification
-
-aiokafka # or confluent-kafka or kafka-python
+kafka-python   # or confluent-kafka
 redis
 tenacity
 
@@ -22,10 +20,6 @@ grpcio-tools
 protobuf
 
 debugpy
-
 # -e ../../packages/shared
 # -e ../../packages/contracts
-# -e ../../
-
-git+https://github.com/judeakinwale/rag_packages.git@main
-
+-e ../../

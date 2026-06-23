@@ -18,12 +18,14 @@ from app.consumers import user_consumers
 TOPICS = [
     "user.created",
     "user.updated",
+    "user.softdeleted",
     "user.deleted",
 ]
 
 HANDLERS = {
     "user.created": user_consumers.handle_user_created,
     "user.updated": user_consumers.handle_user_updated,
+    "user.softdeleted": user_consumers.handle_user_softdeleted,
     "user.deleted": user_consumers.handle_user_deleted,
 }
 

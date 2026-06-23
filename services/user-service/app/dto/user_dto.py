@@ -1,27 +1,27 @@
-from pydantic import BaseModel
-from typing import Optional
+from app.dto.shared_dto import BaseDTO, APIResponse
 
 
-class CreateUserRequest(BaseModel):
+class CreateUserRequest(BaseDTO):
     email: str
     name: str
     password: str
 
 
-class TestUpdateUserRequest(Optional[CreateUserRequest]):
-    pass
+class UpdateUserRequest(BaseDTO):
+    email: str | None = None
+    name: str | None = None
+    password: str | None = None
 
 
-class UpdateUserRequest(BaseModel):
-    email: Optional[str] = None
-    name: Optional[str] = None
-    password: Optional[str] = None
-
-
-class UserResponse(BaseModel):
+class UserResponse(BaseDTO):
     id: int
     email: str
     name: str
 
-    class Config:
-        from_attributes = True
+
+class UserAPIResponse(APIResponse):
+    data: UserResponse | None = None
+
+
+class UserListAPIResponse(APIResponse):
+    data: list[UserResponse] | None = None
