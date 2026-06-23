@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-
 from fastapi import HTTPException, Request, status
 
 
@@ -23,3 +22,28 @@ def get_auth_context(request: Request) -> AuthContext:
         email=claims["email"],
         roles=claims.get("roles", []),
     )
+
+
+# NOTE:
+# # user service -> auth service
+# {
+#   "id": 123,
+#   "email": "user@example.com",
+#   "password_hash": "$argon2id$v=19$m=65536,t=3,p=4$...",
+#   "is_active": true
+# }
+
+# # in auth service
+# user = await user_client.get_user_credentials_by_email(email)
+# if user is None:
+#     deny()
+
+# if not verify_password(password, user["password_hash"]):
+#     deny()
+
+# # auth service -> user service
+# token = issue_access_token(
+#     sub=str(user["id"]),
+#     email=user["email"],
+#     roles=["user"],
+# )

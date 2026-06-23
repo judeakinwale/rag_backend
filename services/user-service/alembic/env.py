@@ -13,7 +13,7 @@ from alembic import context
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 # use shared model Base and configured settings from the app's config module
-from app.models.base import Base
+from rag_packages.shared.database.base import Base
 from app.core.config import settings
 
 # ! import all models here to ensure they are registered with SQLAlchemy's metadata

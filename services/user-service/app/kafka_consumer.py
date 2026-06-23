@@ -1,11 +1,7 @@
-# import logging
 # from app.core.config import settings
 from app.consumers import user_consumers
 # from rag_packages.shared.kafka.consumer import KafkaConsumer
 
-
-# logger = logging.getLogger(__name__)
-# service_name = settings.APP_NAME
 
 # "user.created.dlq": user_consumers.handle_user_created,
 # "user.updated.dlq": user_consumers.handle_user_updated,
@@ -16,6 +12,7 @@ from app.consumers import user_consumers
 # QUEUE_MAXSIZE = 10000
 
 TOPICS = [
+    "test.topic",
     "user.created",
     "user.updated",
     "user.softdeleted",
@@ -23,6 +20,7 @@ TOPICS = [
 ]
 
 HANDLERS = {
+    "test.topic": user_consumers.handle_test_event,
     "user.created": user_consumers.handle_user_created,
     "user.updated": user_consumers.handle_user_updated,
     "user.softdeleted": user_consumers.handle_user_softdeleted,

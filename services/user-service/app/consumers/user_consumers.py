@@ -1,7 +1,5 @@
 from app.events.user_events import UserCreatedEvent, UserUpdatedEvent, UserDeletedEvent
 
-# TODO: split this file if needed
-
 
 def handle_test_event(event: dict):
     print(f"[user-service] Handling test.topic event: {event}")

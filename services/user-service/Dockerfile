@@ -4,7 +4,6 @@ FROM python:3.13-slim
 WORKDIR /app
 
 COPY requirements.txt .
-# COPY pyproject.toml .
 
 RUN apt update
 RUN apt install -y git

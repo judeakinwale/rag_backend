@@ -1,9 +1,8 @@
-from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.user_service import UserService
 from app.repositories.user_repository import UserRepository
 from app.producers.user_producer import UserProducer
-from app.core.uow import UnitOfWork
+from rag_packages.shared.database.uow import UnitOfWork
 from rag_packages.shared.kafka.producer import KafkaProducer
 
 

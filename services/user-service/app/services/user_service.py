@@ -1,9 +1,9 @@
 from app.repositories.user_repository import UserRepository
 from app.producers.user_producer import UserProducer
 from app.events.user_events import UserCreatedEvent, UserUpdatedEvent, UserDeletedEvent
-from app.core.uow import UnitOfWork
 from app.models.user import User
 from app.dto.user_dto import CreateUserRequest, UpdateUserRequest, UserResponse
+from rag_packages.shared.database.uow import UnitOfWork
 
 
 class UserService:

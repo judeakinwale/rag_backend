@@ -1,4 +1,4 @@
-from app.events.shared_events import BaseEvent
+from rag_packages.contracts.events.shared_events import BaseEvent
 
 
 class UserCreatedEvent(BaseEvent):
