@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     JWT_TOKEN_URL: str | None = "/api/v1/auth/token"
     JWT_TOKEN_EXPIRES_IN: int | None = 3600 * 24  # in seconds, default is one day
 
+    REDIS_HOST: str | None = "localhost"
+    REDIS_PORT: int | None = 6379
+    REDIS_PASSWORD: str | None = None
+    REDIS_CACHE_KEY_PREFIX: str | None = "user_service"
+
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",  # ".env"
         extra="ignore",

@@ -1,5 +1,10 @@
 from rag_packages.shared.kafka.producer import KafkaProducer
-from app.events.user_events import UserCreatedEvent, UserUpdatedEvent, UserDeletedEvent
+from app.events.user_events import (
+    UserCreatedEvent,
+    UserUpdatedEvent,
+    UserSoftDeletedEvent,
+    UserDeletedEvent,
+)
 
 
 class UserProducer:
@@ -23,6 +28,15 @@ class UserProducer:
     async def user_updated(self, event: UserUpdatedEvent, key: str | None = None):
         await self.producer.publish(
             "user.updated",
+            event.model_dump(),
+            key,
+        )
+
+    async def user_softdeleted(
+        self, event: UserSoftDeletedEvent, key: str | None = None
+    ):
+        await self.producer.publish(
+            "user.softdeleted",
             event.model_dump(),
             key,
         )

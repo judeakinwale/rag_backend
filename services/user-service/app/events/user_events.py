@@ -11,5 +11,9 @@ class UserUpdatedEvent(UserCreatedEvent):
     updated: list[str] | None = None  # list of updated fields
 
 
+class UserSoftDeletedEvent(UserCreatedEvent):
+    pass
+
+
 class UserDeletedEvent(UserCreatedEvent):
     pass

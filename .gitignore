@@ -19,3 +19,6 @@ services/api-gateway/
 # Virtual environments
 .venv
 .env
+
+# chat
+dlq_conversation.md

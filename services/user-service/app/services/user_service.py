@@ -1,7 +1,9 @@
+import orjson
 from app.repositories.user_repository import UserRepository
 from app.producers.user_producer import UserProducer
 from app.events.user_events import UserCreatedEvent, UserUpdatedEvent, UserDeletedEvent
 from app.models.user import User
+from app.core.redis import generate_cache_key, r
 from app.dto.user_dto import CreateUserRequest, UpdateUserRequest, UserResponse
 from rag_packages.shared.database.uow import UnitOfWork
 
@@ -19,8 +21,25 @@ class UserService:
         self.producer = producer
 
     async def get_users(self) -> list[UserResponse]:
+        cache_key = generate_cache_key(str("all"))
+        cached = await r.get(cache_key)
+
+        if cached is not None:
+            try:
+                user_arr = orjson.loads(cached)  # Ensure the cached data is valid JSON
+                return [UserResponse.model_validate_json(user) for user in user_arr]
+
+            except orjson.JSONDecodeError:
+                print(
+                    f"[user-service] Failed to decode cached data for key {cache_key}. Invalidating cache."
+                )
+                await r.delete(cache_key)  # invalidate corrupted cache
+
         users = await self.repo.get_all()
-        return [UserResponse.model_validate(user) for user in users]
+        valid_users = [UserResponse.model_validate(user) for user in users]
+
+        await r.set(cache_key, orjson.dumps(valid_users))
+        return valid_users
 
     # TODO: confirm this works as expected
     async def create_user(self, payload: CreateUserRequest) -> UserResponse:
@@ -45,10 +64,20 @@ class UserService:
         return UserResponse.model_validate(user)
 
     async def get_user_by_id(self, user_id: int) -> UserResponse | None:
+        cache_key = generate_cache_key(str(user_id))
+        cached = await r.get(cache_key)
+
+        if cached is not None:
+            return UserResponse.model_validate_json(cached)
+
         user = await self.repo.get_by_id(user_id)
         if user is None:
             return None
-        return UserResponse.model_validate(user)
+
+        valid_user = UserResponse.model_validate(user)
+
+        await r.set(cache_key, valid_user.model_dump_json())
+        return valid_user
 
     async def update_user(
         self, user_id: int, payload: UpdateUserRequest

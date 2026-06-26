@@ -28,7 +28,7 @@ async def get_users(
     producer: UserProducer = Depends(get_user_producer),
 ) -> UserListAPIResponse:
     users = await service.get_users()
-    await producer.test({"event_msg": "get_users_called"})
+    # await producer.test({"event_msg": "get_users_called"})
 
     return UserListAPIResponse(
         success=True,
