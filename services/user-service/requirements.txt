@@ -5,6 +5,8 @@ httpx
 python-dotenv
 pydantic-settings
 
+python-jose[cryptography]
+
 sqlalchemy
 asyncpg
 alembic
@@ -22,6 +24,9 @@ grpcio-tools
 protobuf
 
 debugpy
+
+pytest
+pytest-asyncio
 
 # -e ../../packages/shared
 # -e ../../packages/contracts
