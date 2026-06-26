@@ -1,15 +1,36 @@
-import json
-from kafka import KafkaConsumer
+# from app.core.config import settings
+from app.consumers import ingest_consumers
+# from rag_packages.shared.kafka.consumer import KafkaConsumer
 
-def start_consumer(topic: str):
-    consumer = KafkaConsumer(
-        topic,
-        bootstrap_servers="kafka:9092",
-        value_deserializer=lambda m: json.loads(m.decode("utf-8")),
-        auto_offset_reset="earliest",
-        enable_auto_commit=True,
-        group_id="ingest-service-group",
-    )
 
-    for msg in consumer:
-        print(f"[ingest-service] received:", msg.value)
+TOPICS = [
+    "test.topic",
+    "ingest.created",
+    "ingest.created.dlq",
+    "ingest.updated",
+    "ingest.updated.dlq",
+    "ingest.softdeleted",
+    "ingest.softdeleted.dlq",
+    "ingest.deleted",
+    "ingest.deleted.dlq",
+]
+
+HANDLERS = {
+    "test.topic": ingest_consumers.handle_test_event,
+    "ingest.created": ingest_consumers.handle_ingest_created,
+    "ingest.created.dlq": ingest_consumers.handle_ingest_created_dlq,
+    "ingest.updated": ingest_consumers.handle_ingest_updated,
+    "ingest.updated.dlq": ingest_consumers.handle_ingest_updated_dlq,
+    "ingest.softdeleted": ingest_consumers.handle_ingest_softdeleted,
+    "ingest.softdeleted.dlq": ingest_consumers.handle_ingest_softdeleted_dlq,
+    "ingest.deleted": ingest_consumers.handle_ingest_deleted,
+    "ingest.deleted.dlq": ingest_consumers.handle_ingest_deleted_dlq,
+}
+
+# consumer = KafkaConsumer(
+#     topics=TOPICS,
+#     handlers=HANDLERS,
+#     dlq_producer=producer,
+#     bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+#     service_name=settings.APP_NAME,
+# )
