@@ -1,4 +1,4 @@
-from rag_packages.contracts.dto.shared_dto import BaseDTO, APIResponse
+from rag_packages.contracts.dto.shared_dto import BaseDTO, APIResponse, APIListResponse
 from app.models.user import RoleOption
 
 
@@ -27,5 +27,5 @@ class UserAPIResponse(APIResponse):
     data: UserResponse | None = None
 
 
-class UserListAPIResponse(APIResponse):
+class UserListAPIResponse(APIListResponse):
     data: list[UserResponse] | None = None
