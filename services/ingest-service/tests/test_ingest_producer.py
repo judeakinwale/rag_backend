@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.events.ingest_events import IngestCreatedEvent, IngestDeletedEvent, IngestUpdatedEvent
+from app.events.ingest_events import IngestStartedEvent, IngestDeletedEvent, IngestUpdatedEvent
 from app.producers.ingest_producer import IngestProducer
 
 
@@ -22,7 +22,7 @@ async def test_test_event_publishes_to_test_topic():
 async def test_ingest_created_publishes_serialized_event():
     kafka_producer = AsyncMock()
     producer = IngestProducer(kafka_producer)
-    event = IngestCreatedEvent(id=1, email="ingest@example.com", name="Ingest")
+    event = IngestStartedEvent(id=1, email="ingest@example.com", name="Ingest")
 
     await producer.ingest_created(event)
 

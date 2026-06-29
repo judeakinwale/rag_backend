@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     REDIS_PORT: int | None = 6379
     REDIS_PASSWORD: str | None = None
     REDIS_CACHE_KEY_PREFIX: str | None = "ingest_service"
+    
+    # Entra Id Sharepoint Configuration
+    AZURE_TENANT_ID: str
+    AZURE_CLIENT_ID: str
+    AZURE_CLIENT_SECRET: str
 
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",  # ".env"

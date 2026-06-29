@@ -1,19 +1,19 @@
+from app.dto.document_dto import DocSource
 from rag_packages.contracts.events.shared_events import BaseEvent
 
 
-class IngestCreatedEvent(BaseEvent):
-    id: int
-    email: str
-    name: str
+class IngestStartedEvent(BaseEvent):
+    document_ids: list[int]
+    source: DocSource
 
 
-class IngestUpdatedEvent(IngestCreatedEvent):
-    updated: list[str] | None = None  # list of updated fields
+# track processing for each document, when all documents are processed, emit IngestCompletedEvent
+class ProcessingStartedEvent(BaseEvent):
+    document_ids: list[int] | None = None  # for tracking and calling ingest_completed
+    document_id: int
+    source: DocSource
+    remaining_documents: int
 
 
-class IngestSoftDeletedEvent(IngestCreatedEvent):
-    pass
-
-
-class IngestDeletedEvent(IngestCreatedEvent):
+class IngestCompletedEvent(IngestStartedEvent):
     pass

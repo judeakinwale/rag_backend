@@ -1,10 +1,22 @@
+from datetime import datetime
+
 import orjson
-from app.repositories.ingest_repository import IngestRepository
+from app.repositories.document_repository import DocumentRepository
+from app.services.document_service import DocumentService
+from app.services.sharepoint_service import SharepointService
 from app.producers.ingest_producer import IngestProducer
-from app.events.ingest_events import IngestCreatedEvent, IngestUpdatedEvent, IngestDeletedEvent
-from app.models.ingest import Ingest
+from app.events.ingest_events import (
+    IngestStartedEvent,
+    ProcessingStartedEvent,
+    IngestCompletedEvent,
+)
 from app.core.redis import generate_cache_key, r
-from app.dto.ingest_dto import CreateIngestRequest, UpdateIngestRequest, IngestResponse
+from app.dto.document_dto import CreateDocumentRequest, DocSource
+from app.dto.ingest_dto import (
+    CreateIngestRequest,
+    CompleteIngestRequest,
+    IngestResponse,
+)
 from rag_packages.shared.database.uow import UnitOfWork
 
 
@@ -12,94 +24,135 @@ class IngestService:
     def __init__(
         self,
         uow: UnitOfWork,
-        repo: IngestRepository,
+        # # repo: IngestRepository,
+        # doc_repo: DocumentRepository,
+        document_service: DocumentService,
+        sharepoint_service: SharepointService,
         producer: IngestProducer,
         # outbox_repo: None = None,
+        document_source: DocSource = "sharepoint",
     ):
         self.uow = uow
-        self.repo = repo
+        # # self.repo = repo
+        # self.doc_repo = doc_repo
+        self.document_service = document_service
+        self.sharepoint_service = sharepoint_service
         self.producer = producer
+        self.document_source = document_source
 
-    async def get_ingests(self) -> list[IngestResponse]:
-        cache_key = generate_cache_key(str("all"))
-        cached = await r.get(cache_key)
+    def set_document_source(self, document_source: DocSource) -> None:
+        self.document_source = document_source
 
-        if cached is not None:
-            try:
-                ingest_arr = orjson.loads(cached)  # Ensure the cached data is valid JSON
-                return [IngestResponse.model_validate_json(ingest) for ingest in ingest_arr]
+    # TODO: modify this to work with the response from sharepoint document libraries
+    def sp_doc_to_create_doc_payload(
+        self, sp_doc: dict, extra: dict = {}
+    ) -> CreateDocumentRequest:
+        return CreateDocumentRequest(
+            name=sp_doc.get("name"),
+            file_url=sp_doc.get("file_url"),
+            library_name=sp_doc.get("library_name"),
+            library_id=sp_doc.get("library_id"),
+            site_url=sp_doc.get("site_url"),
+            parent_folder_path=sp_doc.get("parent_folder_path"),
+            file_metadata=sp_doc.get("file_metadata", {}),
+            last_modified=sp_doc.get("last_modified"),
+            file_type=sp_doc.get("file_type"),
+            **extra,
+        )
 
-            except orjson.JSONDecodeError:
-                print(
-                    f"[ingest-service] Failed to decode cached data for key {cache_key}. Invalidating cache."
-                )
-                await r.delete(cache_key)  # invalidate corrupted cache
+    async def start_sharepoint_ingest(
+        self, payload: CreateIngestRequest
+    ) -> list[IngestResponse]:
+        if self.document_source != "sharepoint":
+            raise ValueError(
+                f"Document source is set to {self.document_source}. Cannot start SharePoint ingest."
+            )
 
-        ingests = await self.repo.get_all()
-        valid_ingests = [IngestResponse.model_validate(ingest) for ingest in ingests]
+        library_ids = payload.library_ids if payload.library_ids else []
 
-        await r.set(cache_key, orjson.dumps(valid_ingests))
-        return valid_ingests
-
-    # TODO: confirm this works as expected
-    async def create_ingest(self, payload: CreateIngestRequest) -> IngestResponse:
-        async with self.uow:
-            ingest: Ingest = await self.repo.create(payload)
-
-            # ensure the ingest is persisted and
-            await self.uow.session.flush()
-            # access the persisted ingest's id before committing and sending the event
-            ingest_id = ingest.id
-            print(f"Created ingest with ID: {ingest_id}")
-            print(f"Ingest details: {ingest}")
-
-            # outbox_repo.add(
-            #     event_type="ingest_created",
-            #     payload={...}
-            # )
-
-        event = IngestCreatedEvent.model_validate(ingest)
-        await self.producer.ingest_created(event)
-
-        return IngestResponse.model_validate(ingest)
-
-    async def get_ingest_by_id(self, ingest_id: int) -> IngestResponse | None:
-        cache_key = generate_cache_key(str(ingest_id))
+        cache_key = generate_cache_key(
+            f"libraries:{'.'.join(library_ids) if library_ids else 'all'}"
+        )
         cached = await r.get(cache_key)
 
         if cached is not None:
             return IngestResponse.model_validate_json(cached)
 
-        ingest = await self.repo.get_by_id(ingest_id)
-        if ingest is None:
-            return None
+        ingest_initiated_at = datetime.now()
 
-        valid_ingest = IngestResponse.model_validate(ingest)
+        # get document from last created batch from the documents table and get the ingest_initiated_at
+        last_doc = await self.document_service.get_document_in_last_batch(
+            self.document_source
+        )
+        last_check_at = (
+            last_doc.ingest_initiated_at
+            if last_doc and not payload.force_reprocess_all
+            else None
+        )
 
-        await r.set(cache_key, valid_ingest.model_dump_json())
-        return valid_ingest
+        # TODO: sharepoint service get recent document in specified libraries
+        sp_docs: list[dict] = self.sharepoint_service.get_sharepoint_site_documents(
+            library_ids=payload.library_ids, modified_since=last_check_at
+        )
 
-    async def update_ingest(
-        self, ingest_id: int, payload: UpdateIngestRequest
+        extra_payload = {
+            "source": self.document_source,
+            "ingest_initiated_at": ingest_initiated_at,
+        }
+        # TODO: change this to a forloop and use a new method in the document service to
+        # check for existing documents using the file_url and library_id
+        # only create new documents if they don't exist or have been modified since the last ingest_initiated_at
+        # if payload.force_reprocess is True, then update existing documents with the reprocessed data
+        doc_payloads = [
+            self.sp_doc_to_create_doc_payload(sp_doc, extra=extra_payload)
+            for sp_doc in sp_docs
+        ]
+        created_docs = await self.document_service.create_multiple_documents(
+            doc_payloads
+        )
+
+        event = IngestStartedEvent(library_ids=library_ids, documents=created_docs)
+        await self.producer.ingest_started(event)
+
+        created_doc_ids = []
+        docs_len = len(created_docs)
+        for index, document in enumerate(created_docs):
+            created_doc_ids.append(document.id)
+            processing_event = ProcessingStartedEvent(
+                document_ids=created_doc_ids,
+                document_id=document.id,
+                source=self.document_source,
+                remaining_documents=docs_len - index - 1,
+            )
+            await self.producer.processing_started(processing_event)
+
+        response = IngestResponse(library_ids=library_ids, documents=created_docs)
+
+        # await r.set(cache_key, orjson.dumps(response.model_dump()))
+        await r.set(cache_key, (response.model_dump_json()))
+        return response
+
+    async def complete_sharepoint_ingest(
+        self, payload: CompleteIngestRequest
     ) -> IngestResponse | None:
+        library_ids = payload.library_ids if payload.library_ids else []
+
+        # TODO: pass args from payload to get docs matching the id and equal to or more recent than the ingest_initiated_at
+        documents = await self.document_service.get_documents()
+        document_ids: list[str] = []
+
         async with self.uow:
-            ingest: Ingest | None = await self.repo.update(ingest_id, payload)
-            if ingest is None:
-                return None
+            for document in documents:
+                document_ids.append(document.id)
+                document.ingest_status = "completed"
 
-        event = IngestUpdatedEvent.model_validate(ingest)
-        event.updated = list(payload.model_dump(exclude_unset=True).keys())
-        await self.producer.ingest_updated(event)
+            await self.uow.session.flush()
 
-        return IngestResponse.model_validate(ingest)
+        event = IngestCompletedEvent(
+            document_ids=document_ids, source=self.document_source
+        )
+        await self.producer.ingest_completed(event)
 
-    async def delete_ingest(self, ingest_id: int) -> IngestResponse | None:
-        async with self.uow:
-            ingest: Ingest | None = await self.repo.delete(ingest_id)
-            if ingest is None:
-                return None
+        response = IngestResponse(library_ids=library_ids, documents=documents)
 
-        event = IngestDeletedEvent.model_validate(ingest)
-        await self.producer.ingest_deleted(event)
-
-        return IngestResponse.model_validate(ingest)
+        return response

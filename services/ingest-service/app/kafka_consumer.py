@@ -1,36 +1,42 @@
-# from app.core.config import settings
-from app.consumers import ingest_consumers
-# from rag_packages.shared.kafka.consumer import KafkaConsumer
+from app.consumers import document_consumers, ingest_consumers
 
 
 TOPICS = [
-    "test.topic",
-    "ingest.created",
-    "ingest.created.dlq",
-    "ingest.updated",
-    "ingest.updated.dlq",
-    "ingest.softdeleted",
-    "ingest.softdeleted.dlq",
-    "ingest.deleted",
-    "ingest.deleted.dlq",
+    "ingest.started",
+    "ingest.started.dlq",
+    "ingest.processing",
+    "ingest.processing.dlq",
+    "ingest.completed",
+    "ingest.completed.dlq",
+    # ________________________
+    "document.created",
+    "document.created.dlq",
+    "document.processed",
+    "document.processed.dlq",
+    "document.updated",
+    "document.updated.dlq",
+    "document.softdeleted",
+    "document.softdeleted.dlq",
+    "document.deleted",
+    "document.deleted.dlq",
 ]
 
 HANDLERS = {
-    "test.topic": ingest_consumers.handle_test_event,
-    "ingest.created": ingest_consumers.handle_ingest_created,
-    "ingest.created.dlq": ingest_consumers.handle_ingest_created_dlq,
-    "ingest.updated": ingest_consumers.handle_ingest_updated,
-    "ingest.updated.dlq": ingest_consumers.handle_ingest_updated_dlq,
-    "ingest.softdeleted": ingest_consumers.handle_ingest_softdeleted,
-    "ingest.softdeleted.dlq": ingest_consumers.handle_ingest_softdeleted_dlq,
-    "ingest.deleted": ingest_consumers.handle_ingest_deleted,
-    "ingest.deleted.dlq": ingest_consumers.handle_ingest_deleted_dlq,
+    "ingest.started": ingest_consumers.handle_ingest_started,
+    "ingest.started.dlq": ingest_consumers.handle_ingest_started_dlq,
+    "ingest.processing": ingest_consumers.handle_processing_started,
+    "ingest.processing.dlq": ingest_consumers.handle_processing_started_dlq,
+    "ingest.completed": ingest_consumers.handle_ingest_completed,
+    "ingest.completed.dlq": ingest_consumers.handle_ingest_completed_dlq,
+    # __________________________________________________________________________
+    "document.created": document_consumers.handle_document_created,
+    "document.created.dlq": document_consumers.handle_document_created_dlq,
+    "document.processed": document_consumers.handle_document_processed,
+    "document.processed.dlq": document_consumers.handle_document_processed_dlq,
+    "document.updated": document_consumers.handle_document_updated,
+    "document.updated.dlq": document_consumers.handle_document_updated_dlq,
+    "document.softdeleted": document_consumers.handle_document_softdeleted,
+    "document.softdeleted.dlq": document_consumers.handle_document_softdeleted_dlq,
+    "document.deleted": document_consumers.handle_document_deleted,
+    "document.deleted.dlq": document_consumers.handle_document_deleted_dlq,
 }
-
-# consumer = KafkaConsumer(
-#     topics=TOPICS,
-#     handlers=HANDLERS,
-#     dlq_producer=producer,
-#     bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
-#     service_name=settings.APP_NAME,
-# )

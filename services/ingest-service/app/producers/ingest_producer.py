@@ -1,9 +1,8 @@
 from rag_packages.shared.kafka.producer import KafkaProducer
 from app.events.ingest_events import (
-    IngestCreatedEvent,
-    IngestUpdatedEvent,
-    IngestSoftDeletedEvent,
-    IngestDeletedEvent,
+    IngestCompletedEvent,
+    IngestStartedEvent,
+    ProcessingStartedEvent,
 )
 
 
@@ -18,32 +17,27 @@ class IngestProducer:
             key,
         )
 
-    async def ingest_created(self, event: IngestCreatedEvent, key: str | None = None):
+    async def ingest_started(self, event: IngestStartedEvent, key: str | None = None):
         await self.producer.publish(
-            "ingest.created",
+            "ingest.started",
             event.model_dump(),
             key,
         )
 
-    async def ingest_updated(self, event: IngestUpdatedEvent, key: str | None = None):
-        await self.producer.publish(
-            "ingest.updated",
-            event.model_dump(),
-            key,
-        )
-
-    async def ingest_softdeleted(
-        self, event: IngestSoftDeletedEvent, key: str | None = None
+    async def processing_started(
+        self, event: ProcessingStartedEvent, key: str | None = None
     ):
         await self.producer.publish(
-            "ingest.softdeleted",
+            "ingest.processing",
             event.model_dump(),
             key,
         )
 
-    async def ingest_deleted(self, event: IngestDeletedEvent, key: str | None = None):
+    async def ingest_completed(
+        self, event: IngestCompletedEvent, key: str | None = None
+    ):
         await self.producer.publish(
-            "ingest.deleted",
+            "ingest.completed",
             event.model_dump(),
             key,
         )

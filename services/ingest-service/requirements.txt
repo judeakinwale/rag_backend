@@ -28,6 +28,9 @@ debugpy
 pytest
 pytest-asyncio
 
+azure-identity
+msgraph-sdk
+
 # -e ../../packages/shared
 # -e ../../packages/contracts
 # -e ../../

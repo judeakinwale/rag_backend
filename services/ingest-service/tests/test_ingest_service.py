@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.dto.ingest_dto import CreateIngestRequest, UpdateIngestRequest
-from app.events.ingest_events import IngestCreatedEvent, IngestDeletedEvent, IngestUpdatedEvent
+from app.events.ingest_events import IngestStartedEvent, IngestDeletedEvent, IngestUpdatedEvent
 from app.models.ingest import RoleOption
 from app.services.ingest_service import IngestService
 
@@ -39,7 +39,7 @@ async def test_get_ingests_maps_entities_to_responses():
     producer = SimpleNamespace()
     service = IngestService(FakeUnitOfWork(), repo, producer)
 
-    result = await service.get_ingests()
+    result = await service.get_untracked_documents()
 
     assert [ingest.id for ingest in result] == [1, 2]
     assert all(ingest.email.endswith("@example.com") for ingest in result)
@@ -65,7 +65,7 @@ async def test_create_ingest_flushes_and_publishes_created_event():
     uow.session.flush.assert_awaited_once()
     producer.ingest_created.assert_awaited_once()
     event = producer.ingest_created.await_args.args[0]
-    assert isinstance(event, IngestCreatedEvent)
+    assert isinstance(event, IngestStartedEvent)
     assert event.id == ingest.id
     assert result.id == ingest.id
 
