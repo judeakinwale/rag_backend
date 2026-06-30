@@ -1,0 +1,28 @@
+# Generic single-database configuration
+
+Auto-generate:
+`
+alembic revision --autogenerate -m "create users table"
+`
+
+Apply:
+`
+alembic upgrade head
+`
+
+Rollback:
+`
+alembic downgrade -1
+`
+
+Mark the DB as current without migration:
+`
+alembic stamp head
+`
+
+View status and history:
+`
+alembic current
+alembic heads
+alembic history
+`
