@@ -3,17 +3,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.dto.user_dto import CreateUserRequest, UpdateUserRequest
 from rag_packages.shared.auth.security import hash_password
+from rag_packages.shared.database.query import QueryParams, get_model_page
 
 
 class UserRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_all(self) -> list[User]:
-        stmt = select(User)
-        result = await self.db.execute(stmt)
-        users = result.scalars().all()
-        return users
+    async def get_all(
+        self, params: QueryParams | None = None
+    ) -> tuple[list[User], int]:
+        users, count = await get_model_page(
+            self.db,
+            User,
+            **params.model_dump() if params else {},
+            search_fields=["email", "name"],
+        )
+        return users, count or 0
 
     async def create(self, payload: CreateUserRequest) -> User | None:
         user_data = payload.model_dump()

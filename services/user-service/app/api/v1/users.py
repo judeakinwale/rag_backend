@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, Request, status
+from typing import Annotated
+from fastapi import APIRouter, Depends, Request, status, Query
 from app.dto.user_dto import (
     UserAPIResponse,
     CreateUserRequest,
@@ -11,6 +12,8 @@ from app.dependencies.user import (
     UserService,
     UserProducer,
 )
+from rag_packages.shared.database.query import QueryParams
+
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -24,15 +27,17 @@ router = APIRouter(prefix="/users", tags=["Users"])
     summary="Get all users",
 )
 async def get_users(
+    query: Annotated[QueryParams, Query()],
     service: UserService = Depends(get_user_service),
     producer: UserProducer = Depends(get_user_producer),
 ) -> UserListAPIResponse:
-    users = await service.get_users()
+    users, count = await service.get_users(query)
     # await producer.test({"event_msg": "get_users_called"})
 
     return UserListAPIResponse(
         success=True,
         data=users,
+        count=count,
     )
 
 

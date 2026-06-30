@@ -6,6 +6,7 @@ from app.models.user import User
 from app.core.redis import generate_cache_key, r
 from app.dto.user_dto import CreateUserRequest, UpdateUserRequest, UserResponse
 from rag_packages.shared.database.uow import UnitOfWork
+from rag_packages.shared.database.query import QueryParams
 
 
 class UserService:
@@ -20,14 +21,17 @@ class UserService:
         self.repo = repo
         self.producer = producer
 
-    async def get_users(self) -> list[UserResponse]:
+    async def get_users(
+        self, params: QueryParams | None = None
+    ) -> tuple[list[UserResponse], int]:
         cache_key = generate_cache_key(str("all"))
         cached = await r.get(cache_key)
 
         if cached is not None:
             try:
-                user_arr = orjson.loads(cached)  # Ensure the cached data is valid JSON
-                return [UserResponse.model_validate_json(user) for user in user_arr]
+                # Ensure the cached data is valid JSON
+                users, count = orjson.loads(cached)
+                return [UserResponse.model_validate_json(user) for user in users], count
 
             except orjson.JSONDecodeError:
                 print(
@@ -35,11 +39,11 @@ class UserService:
                 )
                 await r.delete(cache_key)  # invalidate corrupted cache
 
-        users = await self.repo.get_all()
+        users, count = await self.repo.get_all(params)
         valid_users = [UserResponse.model_validate(user) for user in users]
 
-        await r.set(cache_key, orjson.dumps(valid_users))
-        return valid_users
+        await r.set(cache_key, orjson.dumps((valid_users, count)))
+        return valid_users, count
 
     # TODO: confirm this works as expected
     async def create_user(self, payload: CreateUserRequest) -> UserResponse:
