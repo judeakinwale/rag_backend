@@ -11,6 +11,7 @@ from app.events.ingest_events import (
     IngestCompletedEvent,
 )
 from app.core.redis import generate_cache_key, r
+from app.core.config import settings
 from app.dto.document_dto import CreateDocumentRequest, DocSource
 from app.dto.ingest_dto import (
     CreateIngestRequest,
@@ -21,6 +22,8 @@ from rag_packages.shared.database.uow import UnitOfWork
 
 
 class IngestService:
+    default_library_ids: list[str] = settings.SHAREPOINT_LIBRARY_IDS
+
     def __init__(
         self,
         uow: UnitOfWork,
@@ -43,7 +46,6 @@ class IngestService:
     def set_document_source(self, document_source: DocSource) -> None:
         self.document_source = document_source
 
-    # TODO: modify this to work with the response from sharepoint document libraries
     def sp_doc_to_create_doc_payload(
         self, sp_doc: dict, extra: dict = {}
     ) -> CreateDocumentRequest:
@@ -68,7 +70,7 @@ class IngestService:
                 f"Document source is set to {self.document_source}. Cannot start SharePoint ingest."
             )
 
-        library_ids = payload.library_ids if payload.library_ids else []
+        library_ids = payload.library_ids or self.default_library_ids
 
         cache_key = generate_cache_key(
             f"libraries:{'.'.join(library_ids) if library_ids else 'all'}"
@@ -90,9 +92,10 @@ class IngestService:
             else None
         )
 
-        # TODO: sharepoint service get recent document in specified libraries
-        sp_docs: list[dict] = self.sharepoint_service.get_sharepoint_site_documents(
-            library_ids=payload.library_ids, modified_since=last_check_at
+        sp_docs: list[
+            dict
+        ] = await self.sharepoint_service.get_sharepoint_site_documents(
+            library_ids=library_ids, modified_since=last_check_at
         )
 
         extra_payload = {
@@ -135,7 +138,7 @@ class IngestService:
     async def complete_sharepoint_ingest(
         self, payload: CompleteIngestRequest
     ) -> IngestResponse | None:
-        library_ids = payload.library_ids if payload.library_ids else []
+        library_ids = payload.library_ids or self.default_library_ids
 
         # TODO: pass args from payload to get docs matching the id and equal to or more recent than the ingest_initiated_at
         documents = await self.document_service.get_documents()

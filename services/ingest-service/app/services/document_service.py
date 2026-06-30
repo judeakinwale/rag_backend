@@ -15,6 +15,7 @@ from app.dto.document_dto import (
 )
 from rag_packages.shared.database.uow import UnitOfWork
 from rag_packages.contracts.types.document import DocSource
+from rag_packages.shared.database.query import QueryParams
 
 
 class DocumentService:
@@ -29,7 +30,9 @@ class DocumentService:
         self.repo = repo
         self.producer = producer
 
-    async def get_documents(self) -> list[DocumentResponse]:
+    async def get_documents(
+        self, params: QueryParams | None = None
+    ) -> tuple[list[DocumentResponse], int]:
         cache_key = generate_cache_key(str("all"))
         cached = await r.get(cache_key)
 
@@ -49,7 +52,7 @@ class DocumentService:
                 )
                 await r.delete(cache_key)  # invalidate corrupted cache
 
-        documents = await self.repo.get_all()
+        documents, count = await self.repo.get_all(params)
         valid_documents = [
             DocumentResponse.model_validate(document) for document in documents
         ]
