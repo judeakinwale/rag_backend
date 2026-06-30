@@ -69,7 +69,7 @@ class SharePointIngestPoller:
                     sharepoint_service=self.sharepoint_service,
                 )
                 payload = CreateIngestRequest(
-                    library_ids=self.settings.SHAREPOINT_INGEST_POLL_LIBRARY_IDS,
+                    library_ids=self.settings.SHAREPOINT_LIBRARY_IDS,
                     force_reprocess=False,
                     force_reprocess_all=False,
                 )

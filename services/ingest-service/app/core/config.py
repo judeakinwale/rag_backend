@@ -35,7 +35,6 @@ class Settings(BaseSettings):
     SHAREPOINT_INGEST_POLL_ENABLED: bool = True
     SHAREPOINT_INGEST_POLL_INTERVAL_SECONDS: int = 300
     SHAREPOINT_INGEST_LOCK_TTL_SECONDS: int = 600
-    SHAREPOINT_INGEST_POLL_LIBRARY_IDS: list[str] | None = None
 
     SHAREPOINT_SITE_URL: str | None = "https://klafgo6.sharepoint.com/"
     SHAREPOINT_LIBRARY_IDS: list[str] | None = None
@@ -51,9 +50,9 @@ class Settings(BaseSettings):
     )
 
     # # ? for comma separated string. not needed for json string
-    # @field_validator("SHAREPOINT_INGEST_POLL_LIBRARY_IDS", mode="before")
+    # @field_validator("SHAREPOINT_LIBRARY_IDS", mode="before")
     # @classmethod
-    # def parse_sharepoint_ingest_poll_library_ids(cls, value: Any) -> list[str] | None:
+    # def parse_sharepoint_library_ids(cls, value: Any) -> list[str] | None:
     #     if value is None or value == "":
     #         return None
 

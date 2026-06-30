@@ -18,3 +18,6 @@ os.environ.setdefault(
 os.environ.setdefault("PGADMIN_DEFAULT_EMAIL", "test@example.com")
 os.environ.setdefault("PGADMIN_DEFAULT_PASSWORD", "test")
 os.environ.setdefault("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+os.environ.setdefault("AZURE_TENANT_ID", "tenant")
+os.environ.setdefault("AZURE_CLIENT_ID", "client")
+os.environ.setdefault("AZURE_CLIENT_SECRET", "secret")
