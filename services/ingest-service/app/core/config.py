@@ -1,4 +1,7 @@
 from pathlib import Path
+from typing import Any
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # project's base directory
@@ -28,7 +31,15 @@ class Settings(BaseSettings):
     REDIS_PORT: int | None = 6379
     REDIS_PASSWORD: str | None = None
     REDIS_CACHE_KEY_PREFIX: str | None = "ingest_service"
-    
+
+    SHAREPOINT_INGEST_POLL_ENABLED: bool = True
+    SHAREPOINT_INGEST_POLL_INTERVAL_SECONDS: int = 300
+    SHAREPOINT_INGEST_LOCK_TTL_SECONDS: int = 600
+    SHAREPOINT_INGEST_POLL_LIBRARY_IDS: list[str] | None = None
+
+    SHAREPOINT_SITE_URL: str | None = "https://klafgo6.sharepoint.com/"
+    SHAREPOINT_LIBRARY_IDS: list[str] | None = None
+
     # Entra Id Sharepoint Configuration
     AZURE_TENANT_ID: str
     AZURE_CLIENT_ID: str
@@ -39,9 +50,17 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # class Config:
-    #     env_file = BASE_DIR / ".env"  # ".env"
-    #     extra = "ignore"
+    # # ? for comma separated string. not needed for json string
+    # @field_validator("SHAREPOINT_INGEST_POLL_LIBRARY_IDS", mode="before")
+    # @classmethod
+    # def parse_sharepoint_ingest_poll_library_ids(cls, value: Any) -> list[str] | None:
+    #     if value is None or value == "":
+    #         return None
+
+    #     if isinstance(value, str):
+    #         return [item.strip() for item in value.split(",") if item.strip()] or None
+
+    #     return value
 
 
 settings = Settings()

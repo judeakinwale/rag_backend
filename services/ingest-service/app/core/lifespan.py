@@ -5,6 +5,7 @@ from app.core.db import engine
 from app.core.redis import r
 from app.events.events import EVENTS
 from app.kafka_consumer import TOPICS, HANDLERS
+from app.scheduler.polling import SharePointIngestPoller
 
 # this would be moved to the shared packages later
 from app.services.sharepoint_service import SharepointService, SharepointConfig
@@ -14,6 +15,8 @@ from rag_packages.shared.kafka.consumer import KafkaConsumer
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    app.state.sharepoint_ingest_poller = None
+
     try:
         app.state.kafka_producer = KafkaProducer(
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
@@ -41,6 +44,7 @@ async def lifespan(app: FastAPI):
             client_id=settings.AZURE_CLIENT_ID,
             client_secret=settings.AZURE_CLIENT_SECRET,
             tenant_id=settings.AZURE_TENANT_ID,
+            site_url=settings.SHAREPOINT_SITE_URL,
         )
         app.state.sharepoint_service = SharepointService(config=config)
 
@@ -55,7 +59,22 @@ async def lifespan(app: FastAPI):
         )
         app.state.sharepoint_service = None
 
+    kafka_producer = app.state.kafka_producer
+    sharepoint_service = app.state.sharepoint_service
+    if kafka_producer and sharepoint_service:
+        poller = SharePointIngestPoller(
+            kafka_producer=kafka_producer,
+            sharepoint_service=sharepoint_service,
+        )
+        await poller.start()
+        app.state.sharepoint_ingest_poller = poller
+
     yield
+
+    poller = app.state.sharepoint_ingest_poller
+    if poller:
+        await poller.stop()
+        app.state.sharepoint_ingest_poller = None
 
     kafka_producer = app.state.kafka_producer
     if kafka_producer:
