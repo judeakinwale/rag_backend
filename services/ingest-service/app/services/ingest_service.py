@@ -94,7 +94,7 @@ class IngestService:
 
         sp_docs: list[
             dict
-        ] = await self.sharepoint_service.get_sharepoint_site_documents(
+        ] = await self.sharepoint_service.get_site_documents(
             library_ids=library_ids, modified_since=last_check_at
         )
 

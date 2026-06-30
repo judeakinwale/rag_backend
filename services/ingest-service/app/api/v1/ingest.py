@@ -1,17 +1,60 @@
-from fastapi import APIRouter, Depends, Request, status
+from typing import Annotated
+from fastapi import APIRouter, Depends, Request, status, Query
+from app.core.config import settings
 from app.dto.ingest_dto import (
     IngestAPIResponse,
     CreateIngestRequest,
     CompleteIngestRequest,
 )
 from app.dependencies.ingest import (
+    get_sharepoint_service,
     get_ingest_service,
     get_ingest_producer,
+    SharepointService,
     IngestService,
     IngestProducer,
 )
+from rag_packages.contracts.dto.shared_dto import APIListResponse
 
 router = APIRouter(prefix="/ingest", tags=["Ingest"])
+
+
+@router.get(
+    "/sharepoint/libraries",
+    status_code=status.HTTP_200_OK,
+    response_model=APIListResponse,
+)
+async def get_sharepoint_libraries(
+    request: Request,
+    sharepoint_service: SharepointService = Depends(get_sharepoint_service),
+):
+    libraries = await sharepoint_service.get_site_document_libraries()
+    return APIListResponse(
+        success=True,
+        data=libraries,
+        count=len(libraries),
+        message="SharePoint libraries retrieved successfully",
+    )
+
+
+@router.get(
+    "/sharepoint/documents",
+    status_code=status.HTTP_200_OK,
+    response_model=APIListResponse,
+)
+async def get_sharepoint_documents(
+    request: Request,
+    library_ids: Annotated[list[str] | None, Query()] = None,
+    sharepoint_service: SharepointService = Depends(get_sharepoint_service),
+):
+    library_ids = library_ids or settings.SHAREPOINT_LIBRARY_IDS
+    documents = await sharepoint_service.get_site_documents(library_ids)
+    return APIListResponse(
+        success=True,
+        data=documents,
+        count=len(documents),
+        message="SharePoint documents retrieved successfully",
+    )
 
 
 @router.post(
