@@ -23,6 +23,8 @@ grpcio
 grpcio-tools
 protobuf
 
+celery
+
 debugpy
 
 pytest
