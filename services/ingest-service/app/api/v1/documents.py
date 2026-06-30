@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, Request, status
+from typing import Annotated
+from fastapi import APIRouter, Depends, Request, status, Query
 from app.dto.document_dto import (
     DocumentAPIResponse,
     CreateDocumentRequest,
@@ -11,6 +12,8 @@ from app.dependencies.document import (
     DocumentService,
     DocumentProducer,
 )
+from rag_packages.shared.database.query import QueryParams
+
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -25,15 +28,16 @@ router = APIRouter(prefix="/documents", tags=["Documents"])
     summary="Get all documents",
 )
 async def get_documents(
+    query: Annotated[QueryParams, Query()],
     service: DocumentService = Depends(get_document_service),
     producer: DocumentProducer = Depends(get_document_producer),
 ) -> DocumentListAPIResponse:
-    documents = await service.get_documents()
-    # await producer.test({"event_msg": "get_documents_called"})
+    documents, count = await service.get_documents(query)
 
     return DocumentListAPIResponse(
         success=True,
         data=documents,
+        count=count,
     )
 
 

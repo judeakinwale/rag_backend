@@ -1,21 +1,37 @@
-from sqlalchemy import select
+from typing import Any, Literal, overload
+
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.document import Document
 from app.dto.document_dto import DocSource, CreateDocumentRequest, UpdateDocumentRequest
+from rag_packages.shared.database.query import QueryParams, get_model_page
+
+SortDirection = Literal["asc", "desc"]
 
 
 class DocumentRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    # TODO: add logic to document repo get all to allow for filtering by model properties,
-    # an array of ids, search using a query, and sorting by model properties,
-    # specifying a limit and offset for pagination and a count in the response
-    async def get_all(self) -> list[Document]:
-        stmt = select(Document)
-        result = await self.db.execute(stmt)
-        documents = result.scalars().all()
-        return documents
+    async def get_all(
+        self, params: QueryParams | None = None
+    ) -> tuple[list[Document], int]:
+        documents, count = await get_model_page(
+            self.db,
+            Document,
+            **params.model_dump() if params else {},
+            search_fields=[
+                "name",
+                "file_url",
+                "library_name",
+                "library_id",
+                "site_url",
+                "parent_folder_path",
+                "source",
+                "file_type",
+            ],
+        )
+        return documents, count or 0
 
     async def create_multiple(
         self, payloads: list[CreateDocumentRequest]
