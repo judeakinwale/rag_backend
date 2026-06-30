@@ -50,13 +50,6 @@ async def lifespan(app: FastAPI):
 
     except Exception as e:
         print(f"Error initializing SharepointService: {e}")
-        print(
-            {
-                "client_id": settings.AZURE_CLIENT_ID,
-                "client_secret": settings.AZURE_CLIENT_SECRET,
-                "tenant_id": settings.AZURE_TENANT_ID,
-            }
-        )
         app.state.sharepoint_service = None
 
     kafka_producer = app.state.kafka_producer
