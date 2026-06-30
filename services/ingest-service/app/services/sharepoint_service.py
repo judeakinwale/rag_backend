@@ -111,6 +111,22 @@ class SharepointService:
             "last_modified": last_modified,
             "file_type": name.rsplit(".", 1)[-1].lower() if "." in name else "",
         }
+        
+    async def get_file(self, file_url: str) -> dict:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.get(file_url, headers=await self._headers())
+            response.raise_for_status()
+            file_content = response.content
+            file_size = len(file_content)
+            file_sha256 = httpx.utils.sha256(file_content).hexdigest()
+            file_b64 = httpx.utils.base64.b64encode(file_content).decode("utf-8")
+
+        return {
+            "binary": file_content,
+            "b64": file_b64,
+            "size": file_size,
+            "sha256": file_sha256,
+        }
 
     async def get_site_document_libraries(self):
         async with httpx.AsyncClient(timeout=30) as client:

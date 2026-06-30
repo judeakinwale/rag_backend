@@ -18,6 +18,7 @@ class CreateDocumentRequest(BaseDTO):
     file_metadata: dict[str, Any] | None = None
     last_modified: str
     file_type: str
+    file_size: int | None = None
     ingest_initiated_at: datetime | None = None
 
 
@@ -31,6 +32,8 @@ class UpdateDocumentRequest(BaseDTO):
     file_metadata: dict[str, Any] | None = None
     last_modified: str | None = None
     file_type: str | None = None
+    file_size: int | None = None
+    ingest_initiated_at: datetime | None = None
 
 
 class DocumentResponse(BaseDTO):
@@ -45,7 +48,12 @@ class DocumentResponse(BaseDTO):
     file_metadata: dict[str, Any] | None = None
     last_modified: str
     file_type: str
-    file_size: int
+    file_size: int | None = None
+
+    # not stored in db, may be added in response for single document retrieval
+    file_b64: str | None = None
+    file_sha256: str | None = None
+
     ingest_initiated_at: datetime | None = None
     ingest_status: IngestStatus = "started"
     created_at: datetime
@@ -56,22 +64,9 @@ class DocumentResponse(BaseDTO):
     is_deleted: bool
 
 
-class DocumentResponseWithB64File(DocumentResponse):
-    file_b64: str
-    file_sha256: str
-
-
 class DocumentAPIResponse(APIResponse):
     data: DocumentResponse | None = None
 
 
 class DocumentListAPIResponse(APIListResponse):
     data: list[DocumentResponse] | None = None
-
-
-class DocumentAPIResponseWithB64File(APIResponse):
-    data: DocumentResponseWithB64File | None = None
-
-
-class DocumentListAPIResponseWithB64File(APIListResponse):
-    data: list[DocumentResponseWithB64File] | None = None

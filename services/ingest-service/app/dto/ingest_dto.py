@@ -1,6 +1,6 @@
 from datetime import datetime
 from rag_packages.contracts.dto.shared_dto import BaseDTO, APIResponse
-from app.dto.document_dto import DocumentResponse, DocumentResponseWithB64File
+from app.dto.document_dto import DocumentResponse
 
 
 # NOTE: library_ids is optional because it is only relevant for sharepoint and
@@ -28,12 +28,3 @@ class IngestResponse(BaseDTO):
 
 class IngestAPIResponse(APIResponse):
     data: IngestResponse | None = None
-
-
-class IngestResponseWithB64Files(BaseDTO):
-    library_ids: list[str] | None = None
-    documents: list[DocumentResponseWithB64File]
-
-
-class IngestAPIResponseWithB64File(APIResponse):
-    data: IngestResponseWithB64Files | None = None
