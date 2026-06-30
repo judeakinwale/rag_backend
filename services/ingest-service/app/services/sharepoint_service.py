@@ -20,7 +20,7 @@ class SharepointService:
     GRAPH_SCOPE = "https://graph.microsoft.com/.default"
 
     def __init__(self, config: SharepointConfig):
-        self.token: str
+        # self.token: str
         self.credential = ClientSecretCredential(
             tenant_id=config.tenant_id,
             client_id=config.client_id,
@@ -112,15 +112,15 @@ class SharepointService:
             "file_type": name.rsplit(".", 1)[-1].lower() if "." in name else "",
         }
 
-    async def get_sharepoint_site_document_libraries(self):
+    async def get_site_document_libraries(self):
         async with httpx.AsyncClient(timeout=30) as client:
             return await self._get_document_libraries(client)
 
-    async def get_sharepoint_site_documents(
+    async def get_site_documents(
         self, library_ids: list[str], modified_since: datetime | None = None
     ):
         library_ids = library_ids or []
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=1800) as client:
             site_id = await self._get_site_id(client)
             site = await self._get_json(
                 client,
@@ -138,7 +138,8 @@ class SharepointService:
 
             documents_by_library = await asyncio.gather(
                 *[
-                    self._get_library_documents(client, library, site, modified_since)
+                    # self._get_library_documents(client, library, site, modified_since)
+                    self._get_library_documents_from_list_items(client, library, site, modified_since)
                     for library in libraries
                 ]
             )
@@ -149,7 +150,7 @@ class SharepointService:
             for document in library_documents
         ]
 
-    async def get_sharepoint_site_document(self, document_id: str, library_id: str):
+    async def get_site_document(self, document_id: str, library_id: str):
         async with httpx.AsyncClient(timeout=30) as client:
             site_id = await self._get_site_id(client)
             site = await self._get_json(
@@ -185,10 +186,12 @@ class SharepointService:
             f"{self.GRAPH_BASE_URL}/sites/{site_id}/drives",
             params={
                 "$select": "id,name,webUrl,driveType",
+                "$expand": "list($select=id,name)",
                 "$top": 999,
             },
         )
 
+    # TODO: update this to use delta instead (GET /drives/{drive-id}/root/delta)
     async def _get_library_documents(
         self,
         client: httpx.AsyncClient,
@@ -213,11 +216,12 @@ class SharepointService:
                     f"/items/{item_id}/children"
                 )
             )
-            children = await self._get_paged(
-                client,
-                url,
-                params={"$select": select, "$top": 999},
-            )
+            params = {"$select": select, "$top": 999}
+            if modified_since is not None:
+                params["$filter"] = (
+                    f"lastModifiedDateTime ge {modified_since.isoformat()}"
+                )
+            children = await self._get_paged(client, url, params=params)
 
             for child in children:
                 if "folder" in child:
@@ -244,3 +248,54 @@ class SharepointService:
                 documents.append(document)
 
         return documents
+
+    async def _get_library_documents_from_list_items(
+        self,
+        client: httpx.AsyncClient,
+        library: dict,
+        site: dict,
+        modified_since: datetime | None,
+    ) -> list[dict]:
+        documents: list[dict] = []
+        site_id = site["id"]
+        library_list_id = library["list"]["id"]
+        select = (
+            "id,name"
+            # "id,name,webUrl,file,folder,parentReference,size,"
+            # "lastModifiedDateTime,createdDateTime,eTag,cTag,createdBy,lastModifiedBy"
+        )
+
+        url = f"{self.GRAPH_BASE_URL}/sites/{site_id}/lists/{library_list_id}/items"
+        params = {"$select": select, "$top": 999999, "$expand": "driveItem"}
+        if modified_since is not None:
+            params["$filter"] = f"lastModifiedDateTime ge {modified_since.isoformat()}"
+
+        list_items = await self._get_paged(client, url, params=params)
+        for item in list_items:
+            drive_item = item.get("driveItem")
+            if not drive_item:
+                continue
+
+            document = self._format_document(drive_item, library, site)
+            if not document:
+                continue
+
+            last_modified = document.get("last_modified")
+            if modified_since and last_modified:
+                modified_at = datetime.fromisoformat(
+                    last_modified.replace("Z", "+00:00")
+                )
+                since = (
+                    modified_since.replace(tzinfo=modified_at.tzinfo)
+                    if modified_since.tzinfo is None
+                    else modified_since
+                )
+                if modified_at <= since:
+                    continue
+
+            documents.append(document)
+
+        return documents
+
+    async def close(self):
+        await self.credential.close()
