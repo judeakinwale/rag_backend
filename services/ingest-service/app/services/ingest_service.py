@@ -1,6 +1,5 @@
 from datetime import datetime
 
-import orjson
 from app.repositories.document_repository import DocumentRepository
 from app.services.document_service import DocumentService
 from app.services.sharepoint_service import SharepointService
@@ -12,13 +11,19 @@ from app.events.ingest_events import (
 )
 from app.core.redis import generate_cache_key, r
 from app.core.config import settings
-from app.dto.document_dto import CreateDocumentRequest, DocSource
+from app.dto.document_dto import (
+    CreateDocumentRequest,
+    DocSource,
+    DocumentResponse,
+    UpdateDocumentRequest,
+)
 from app.dto.ingest_dto import (
     CreateIngestRequest,
     CompleteIngestRequest,
     IngestResponse,
 )
 from rag_packages.shared.database.uow import UnitOfWork
+from rag_packages.shared.database.query import QueryParams
 
 
 class IngestService:
@@ -27,8 +32,8 @@ class IngestService:
     def __init__(
         self,
         uow: UnitOfWork,
-        # # repo: IngestRepository,
-        # doc_repo: DocumentRepository,
+        # repo: IngestRepository,
+        doc_repo: DocumentRepository,
         document_service: DocumentService,
         sharepoint_service: SharepointService,
         producer: IngestProducer,
@@ -36,8 +41,8 @@ class IngestService:
         document_source: DocSource = "sharepoint",
     ):
         self.uow = uow
-        # # self.repo = repo
-        # self.doc_repo = doc_repo
+        # self.repo = repo
+        self.doc_repo = doc_repo
         self.document_service = document_service
         self.sharepoint_service = sharepoint_service
         self.producer = producer
@@ -86,52 +91,99 @@ class IngestService:
         last_doc = await self.document_service.get_document_in_last_batch(
             self.document_source
         )
-        last_check_at = (
-            last_doc.ingest_initiated_at
-            if last_doc and not payload.force_reprocess_all
-            else None
-        )
 
-        sp_docs: list[
-            dict
-        ] = await self.sharepoint_service.get_site_documents(
+        last_check_at = last_doc.ingest_initiated_at if last_doc else None
+        if payload.force_reprocess_all:
+            last_check_at = None
+
+        if last_doc is not None and payload.force_reprocess:
+            last_check_at = last_doc.prev_batch_ingest_init
+
+        # last_check_at = (
+        #     last_doc.ingest_initiated_at
+        #     if last_doc and not payload.force_reprocess_all
+        #     else None
+        # )
+
+        sp_docs: list[dict] = await self.sharepoint_service.get_site_documents(
             library_ids=library_ids, modified_since=last_check_at
         )
 
-        extra_payload = {
-            "source": self.document_source,
-            "ingest_initiated_at": ingest_initiated_at,
-        }
-        # TODO: change this to a forloop and use a new method in the document service to
-        # check for existing documents using the file_url and library_id
-        # only create new documents if they don't exist or have been modified since the last ingest_initiated_at
-        # if payload.force_reprocess is True, then update existing documents with the reprocessed data
-        doc_payloads = [
-            self.sp_doc_to_create_doc_payload(sp_doc, extra=extra_payload)
-            for sp_doc in sp_docs
-        ]
+        # extra_payload = {
+        #     "source": self.document_source,
+        #     "ingest_initiated_at": ingest_initiated_at,
+        # }
+        extra_payload = UpdateDocumentRequest(
+            source=self.document_source,
+            ingest_status="started",
+            ingest_initiated_at=ingest_initiated_at,
+            prev_batch_ingest_init=last_check_at,
+        )
+        # # TODO: change this to a forloop and use a new method in the document service to
+        # # check for existing documents using the file_url and library_id
+        # # only create new documents if they don't exist or have been modified since the last ingest_initiated_at
+        # # if payload.force_reprocess is True, then update existing documents with the reprocessed data
+        # doc_payloads = [
+        #     self.sp_doc_to_create_doc_payload(sp_doc, extra=extra_payload)
+        #     for sp_doc in sp_docs
+        # ]
+
+        doc_payloads: list[CreateDocumentRequest] = []
+        updated_docs: list[DocumentResponse] = []
+        updated_doc_ids: list[str] = []
+        should_reprocess = payload.force_reprocess or payload.force_reprocess_all
+
+        for sp_doc in sp_docs:
+            params = QueryParams(
+                filters={
+                    "file_url": sp_doc.get("file_url"),
+                    "library_id": sp_doc.get("library_id"),
+                }
+            )
+            existing, count = await self.doc_repo.get_all(params)
+
+            if not should_reprocess and count > 0:
+                continue
+
+            if count > 0:
+                # document file_url is unique, so existing should contain one document
+                for doc in existing:
+                    updated_doc_ids.append(doc.id)
+                    updated = await self.document_service.update_document(
+                        doc.id, payload=extra_payload
+                    )
+                    updated_docs.append(updated)
+
+                continue
+
+            doc_payload = self.sp_doc_to_create_doc_payload(
+                sp_doc, extra=extra_payload.model_dump()
+            )
+            doc_payloads.append(doc_payload)
+
         created_docs = await self.document_service.create_multiple_documents(
             doc_payloads
         )
 
-        event = IngestStartedEvent(library_ids=library_ids, documents=created_docs)
+        to_process_docs = updated_docs + created_docs
+        to_process_doc_ids = set(updated_doc_ids)
+
+        event = IngestStartedEvent(library_ids=library_ids, documents=to_process_docs)
         await self.producer.ingest_started(event)
 
-        created_doc_ids = []
-        docs_len = len(created_docs)
-        for index, document in enumerate(created_docs):
-            created_doc_ids.append(document.id)
+        docs_len = len(to_process_docs)
+        for index, document in enumerate(to_process_docs):
+            to_process_doc_ids.add(document.id)
             processing_event = ProcessingStartedEvent(
-                document_ids=created_doc_ids,
+                document_ids=list(to_process_doc_ids),
                 document_id=document.id,
                 source=self.document_source,
                 remaining_documents=docs_len - index - 1,
             )
             await self.producer.processing_started(processing_event)
 
-        response = IngestResponse(library_ids=library_ids, documents=created_docs)
+        response = IngestResponse(library_ids=library_ids, documents=to_process_docs)
 
-        # await r.set(cache_key, orjson.dumps(response.model_dump()))
         await r.set(cache_key, (response.model_dump_json()))
         return response
 
@@ -140,14 +192,20 @@ class IngestService:
     ) -> IngestResponse | None:
         library_ids = payload.library_ids or self.default_library_ids
 
-        # TODO: pass args from payload to get docs matching the id and equal to or more recent than the ingest_initiated_at
-        documents = await self.document_service.get_documents()
+        params = QueryParams(
+            ids=payload.document_ids,
+            # the ingest_initiated_at is set at once for all documents in the batch
+            filters={"ingest_initiated_at": payload.ingest_initiated_at},
+        )
+        documents, _ = await self.document_service.get_documents(params)
         document_ids: list[str] = []
 
         async with self.uow:
             for document in documents:
                 document_ids.append(document.id)
-                document.ingest_status = "completed"
+
+                update_payload = UpdateDocumentRequest(ingest_status="completed")
+                await self.doc_repo.update(document.id, update_payload)
 
             await self.uow.session.flush()
 

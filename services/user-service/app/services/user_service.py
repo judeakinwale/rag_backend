@@ -7,6 +7,7 @@ from app.core.redis import generate_cache_key, r
 from app.dto.user_dto import CreateUserRequest, UpdateUserRequest, UserResponse
 from rag_packages.shared.database.uow import UnitOfWork
 from rag_packages.shared.database.query import QueryParams
+from rag_packages.shared.exception.exception import NotFoundException
 
 
 class UserService:
@@ -24,14 +25,14 @@ class UserService:
     async def get_users(
         self, params: QueryParams | None = None
     ) -> tuple[list[UserResponse], int]:
-        cache_key = generate_cache_key(str("all"))
+        cache_key = generate_cache_key(f"all:{params.model_dump_json()}")
         cached = await r.get(cache_key)
 
         if cached is not None:
             try:
                 # Ensure the cached data is valid JSON
                 users, count = orjson.loads(cached)
-                return [UserResponse.model_validate_json(user) for user in users], count
+                return [UserResponse.model_validate(user) for user in users], count
 
             except orjson.JSONDecodeError:
                 print(
@@ -76,7 +77,7 @@ class UserService:
 
         user = await self.repo.get_by_id(user_id)
         if user is None:
-            return None
+            raise NotFoundException(f"User with ID {user_id} not found.")
 
         valid_user = UserResponse.model_validate(user)
 
@@ -89,7 +90,7 @@ class UserService:
         async with self.uow:
             user: User | None = await self.repo.update(user_id, payload)
             if user is None:
-                return None
+                raise NotFoundException(f"User with ID {user_id} not found.")
 
         event = UserUpdatedEvent.model_validate(user)
         event.updated = list(payload.model_dump(exclude_unset=True).keys())
@@ -101,7 +102,7 @@ class UserService:
         async with self.uow:
             user: User | None = await self.repo.delete(user_id)
             if user is None:
-                return None
+                raise NotFoundException(f"User with ID {user_id} not found.")
 
         event = UserDeletedEvent.model_validate(user)
         await self.producer.user_deleted(event)

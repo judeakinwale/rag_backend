@@ -16,10 +16,13 @@ class CreateDocumentRequest(BaseDTO):
     parent_folder_path: str | None = None
     source: DocSource
     file_metadata: dict[str, Any] | None = None
-    last_modified: str
+    last_modified: datetime
     file_type: str
     file_size: int | None = None
+
     ingest_initiated_at: datetime | None = None
+    ingest_status: IngestStatus | None = None
+    prev_batch_ingest_init: datetime | None = None
 
 
 class UpdateDocumentRequest(BaseDTO):
@@ -30,10 +33,13 @@ class UpdateDocumentRequest(BaseDTO):
     parent_folder_path: str | None = None
     source: DocSource | None = None
     file_metadata: dict[str, Any] | None = None
-    last_modified: str | None = None
+    last_modified: datetime | None = None
     file_type: str | None = None
     file_size: int | None = None
+
     ingest_initiated_at: datetime | None = None
+    ingest_status: IngestStatus | None = None
+    prev_batch_ingest_init: datetime | None = None
 
 
 class DocumentResponse(BaseDTO):
@@ -46,7 +52,7 @@ class DocumentResponse(BaseDTO):
     parent_folder_path: str | None = None
     source: DocSource
     file_metadata: dict[str, Any] | None = None
-    last_modified: str
+    last_modified: datetime
     file_type: str
     file_size: int | None = None
 
@@ -55,7 +61,9 @@ class DocumentResponse(BaseDTO):
     file_sha256: str | None = None
 
     ingest_initiated_at: datetime | None = None
-    ingest_status: IngestStatus = "started"
+    ingest_status: IngestStatus | None = None
+    prev_batch_ingest_init: datetime | None = None
+
     created_at: datetime
     created_by_id: int | None = None
     updated_at: datetime | None = None

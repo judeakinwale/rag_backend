@@ -48,11 +48,11 @@ class Container:
         sharepoint_service: SharepointService | None = None,
     ) -> IngestService:
         uow = UnitOfWork(db)
-        # doc_repo = DocumentRepository(db)
+        doc_repo = DocumentRepository(db)
         producer = ingest_producer or IngestProducer(kafka_producer)
         return IngestService(
             uow=uow,
-            # doc_repo=doc_repo,
+            doc_repo=doc_repo,
             producer=producer,
             document_service=document_service,
             document_source="sharepoint",  # default source, can be changed later

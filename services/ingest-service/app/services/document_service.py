@@ -1,3 +1,4 @@
+from datetime import datetime
 import orjson
 from app.repositories.document_repository import DocumentRepository
 from app.producers.document_producer import DocumentProducer
@@ -16,6 +17,7 @@ from app.dto.document_dto import (
 from rag_packages.shared.database.uow import UnitOfWork
 from rag_packages.contracts.types.document import DocSource
 from rag_packages.shared.database.query import QueryParams
+from rag_packages.shared.exception.exception import NotFoundException
 
 
 class DocumentService:
@@ -33,18 +35,17 @@ class DocumentService:
     async def get_documents(
         self, params: QueryParams | None = None
     ) -> tuple[list[DocumentResponse], int]:
-        cache_key = generate_cache_key(str("all"))
+        cache_key = generate_cache_key(
+            f"all:{params.model_dump_json()}" if params else "all"
+        )
         cached = await r.get(cache_key)
 
         if cached is not None:
             try:
-                document_arr = orjson.loads(
-                    cached
-                )  # Ensure the cached data is valid JSON
+                documents, count = orjson.loads(cached)
                 return [
-                    DocumentResponse.model_validate_json(document)
-                    for document in document_arr
-                ]
+                    DocumentResponse.model_validate(document) for document in documents
+                ], count
 
             except orjson.JSONDecodeError:
                 print(
@@ -57,8 +58,8 @@ class DocumentService:
             DocumentResponse.model_validate(document) for document in documents
         ]
 
-        await r.set(cache_key, orjson.dumps(valid_documents))
-        return valid_documents
+        await r.set(cache_key, orjson.dumps((valid_documents, count)))
+        return valid_documents, count
 
     async def create_multiple_documents(
         self, payloads: list[CreateDocumentRequest]
@@ -82,6 +83,7 @@ class DocumentService:
         return [DocumentResponse.model_validate(document) for document in documents]
 
     async def create_document(self, payload: CreateDocumentRequest) -> DocumentResponse:
+        payload.ingest_initiated_at = payload.ingest_initiated_at or datetime.now()
         async with self.uow:
             document: Document = await self.repo.create(payload)
 
@@ -105,7 +107,7 @@ class DocumentService:
 
         document = await self.repo.get_by_id(document_id)
         if document is None:
-            return None
+            raise NotFoundException(f"Document with id: {document_id} not found.")
 
         valid_document = DocumentResponse.model_validate(document)
 
@@ -136,7 +138,7 @@ class DocumentService:
         async with self.uow:
             document: Document | None = await self.repo.update(document_id, payload)
             if document is None:
-                return None
+                raise NotFoundException(f"Document with id: {document_id} not found.")
 
         event = DocumentUpdatedEvent.model_validate(document)
         event.updated = list(payload.model_dump(exclude_unset=True).keys())
@@ -148,7 +150,7 @@ class DocumentService:
         async with self.uow:
             document: Document | None = await self.repo.delete(document_id)
             if document is None:
-                return None
+                raise NotFoundException(f"Document with id: {document_id} not found.")
 
         event = DocumentDeletedEvent.model_validate(document)
         await self.producer.document_deleted(event)

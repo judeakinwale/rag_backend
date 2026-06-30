@@ -175,7 +175,7 @@ def test_settings_defaults_for_sharepoint_polling():
 
 def test_settings_parse_sharepoint_poll_library_ids_from_env(monkeypatch):
     monkeypatch.setenv("SHAREPOINT_INGEST_POLL_ENABLED", "false")
-    monkeypatch.setenv("SHAREPOINT_LIBRARY_IDS", "lib-a, lib-b")
+    monkeypatch.setenv("SHAREPOINT_LIBRARY_IDS", '["lib-a", "lib-b"]')
 
     settings_obj = Settings()
 

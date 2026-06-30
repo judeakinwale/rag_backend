@@ -84,9 +84,9 @@ async def get_document(
     if include_file:
         file_info = await sharepoint_service.get_file(document.file_url)
         print({"file_info": file_info})
-        document.file_b64 = (file_info["b64"],)
-        document.file_size = (file_info["size"],)
-        document.file_sha256 = (file_info["sha256"],)
+        document.file_b64 = file_info["b64"]
+        document.file_size = file_info["size"]
+        document.file_sha256 = file_info["sha256"]
 
     return DocumentAPIResponse(
         success=True,

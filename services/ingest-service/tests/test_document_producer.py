@@ -1,28 +1,26 @@
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
 
-from app.events.document_events import DocumentStartedEvent, DocumentDeletedEvent, DocumentUpdatedEvent
+from app.events.document_events import DocumentCreatedEvent, DocumentDeletedEvent, DocumentUpdatedEvent
 from app.producers.document_producer import DocumentProducer
 
 
-@pytest.mark.asyncio
-async def test_test_event_publishes_to_test_topic():
-    kafka_producer = AsyncMock()
-    producer = DocumentProducer(kafka_producer)
-
-    await producer.test({"hello": "world"}, key="abc")
-
-    kafka_producer.publish.assert_awaited_once_with(
-        "test.topic", {"hello": "world"}, "abc"
-    )
+TIMESTAMP = datetime(2024, 1, 1, tzinfo=UTC)
 
 
 @pytest.mark.asyncio
 async def test_document_created_publishes_serialized_event():
     kafka_producer = AsyncMock()
     producer = DocumentProducer(kafka_producer)
-    event = DocumentStartedEvent(id=1, email="document@example.com", name="Document")
+    event = DocumentCreatedEvent(
+        id=1,
+        name="Document",
+        file_url="https://contoso.example/docs/1.pdf",
+        source="sharepoint",
+        ingest_initiated_at=TIMESTAMP,
+    )
 
     await producer.document_created(event)
 
@@ -39,8 +37,10 @@ async def test_document_updated_publishes_serialized_event():
     producer = DocumentProducer(kafka_producer)
     event = DocumentUpdatedEvent(
         id=1,
-        email="document@example.com",
         name="Document",
+        file_url="https://contoso.example/docs/1.pdf",
+        source="sharepoint",
+        ingest_initiated_at=TIMESTAMP,
         updated=["name"],
     )
 
@@ -57,7 +57,13 @@ async def test_document_updated_publishes_serialized_event():
 async def test_document_deleted_publishes_serialized_event():
     kafka_producer = AsyncMock()
     producer = DocumentProducer(kafka_producer)
-    event = DocumentDeletedEvent(id=1, email="document@example.com", name="Document")
+    event = DocumentDeletedEvent(
+        id=1,
+        name="Document",
+        file_url="https://contoso.example/docs/1.pdf",
+        source="sharepoint",
+        ingest_initiated_at=TIMESTAMP,
+    )
 
     await producer.document_deleted(event)
 
