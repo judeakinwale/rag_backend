@@ -1,6 +1,6 @@
-# ingest-service
+# document-processor-service
 
-FastAPI-based ingest management service for the RAG backend.
+FastAPI-based document processing management service for the RAG backend.
 
 ## Development
 
