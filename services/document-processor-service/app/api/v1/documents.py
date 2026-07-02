@@ -12,6 +12,7 @@ from app.dependencies.document import (
     DocumentService,
     DocumentProducer,
 )
+from app.dependencies.ingest import get_sharepoint_service, SharepointService
 from rag_packages.shared.database.query import QueryParams
 
 
@@ -71,9 +72,21 @@ async def create_document(
     summary="Get a document by ID",
 )
 async def get_document(
-    document_id: int, service: DocumentService = Depends(get_document_service)
+    document_id: int,
+    include_file: bool = Query(False),
+    service: DocumentService = Depends(
+        get_document_service,
+    ),
+    sharepoint_service: SharepointService = Depends(get_sharepoint_service),
 ) -> DocumentAPIResponse:
     document = await service.get_document_by_id(document_id)
+
+    if include_file:
+        file_info = await sharepoint_service.get_file(document.file_url)
+        print({"file_info": file_info})
+        document.file_b64 = file_info["b64"]
+        document.file_size = file_info["size"]
+        document.file_sha256 = file_info["sha256"]
 
     return DocumentAPIResponse(
         success=True,

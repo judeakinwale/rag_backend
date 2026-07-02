@@ -2,7 +2,7 @@
 
 Auto-generate:
 `
-alembic revision --autogenerate -m "create users table"
+alembic revision --autogenerate -m "create documents table"
 `
 
 Apply:

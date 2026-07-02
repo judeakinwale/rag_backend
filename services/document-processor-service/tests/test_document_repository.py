@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -7,62 +8,85 @@ from app.dto.document_dto import CreateDocumentRequest, UpdateDocumentRequest
 from app.repositories.document_repository import DocumentRepository
 
 
-class FakeScalarResult:
-    def __init__(self, values):
-        self._values = values
-
-    def all(self):
-        return self._values
-
-
-class FakeExecuteResult:
-    def __init__(self, values=None, value=None):
-        self._values = values or []
-        self._value = value
-
-    def scalars(self):
-        return FakeScalarResult(self._values)
-
-    def scalar_one_or_none(self):
-        return self._value
-
-
 @pytest.mark.asyncio
-async def test_get_all_returns_scalar_results():
-    documents = [SimpleNamespace(id=1), SimpleNamespace(id=2)]
+async def test_get_all_delegates_to_get_model_page(monkeypatch):
     db = AsyncMock()
-    db.execute.return_value = FakeExecuteResult(values=documents)
     repo = DocumentRepository(db)
+    documents = [SimpleNamespace(id=1), SimpleNamespace(id=2)]
+
+    get_model_page = AsyncMock(return_value=(documents, 2))
+    monkeypatch.setattr("app.repositories.document_repository.get_model_page", get_model_page)
 
     result = await repo.get_all()
 
-    assert result == documents
-    db.execute.assert_awaited_once()
+    assert result == (documents, 2)
+    get_model_page.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_create_hashes_password(monkeypatch):
+async def test_create_builds_document_and_adds_to_session():
     db = SimpleNamespace(add=Mock())
     repo = DocumentRepository(db)
     payload = CreateDocumentRequest(
-        email="document@example.com",
         name="Test Document",
-        password="plain-text",
-        roles=[RoleOption.ADMIN],
-    )
-
-    monkeypatch.setattr(
-        "app.repositories.document_repository.hash_password",
-        lambda password: f"hashed::{password}",
+        file_url="https://contoso.example/docs/test.pdf",
+        library_name="Shared Documents",
+        library_id="library-1",
+        site_url="https://contoso.sharepoint.com/sites/demo",
+        parent_folder_path="/general",
+        source="sharepoint",
+        file_metadata={"etag": "etag-1"},
+        last_modified="2024-01-01T00:00:00Z",
+        file_type="pdf",
+        file_size=100,
     )
 
     document = await repo.create(payload)
 
-    assert document.email == payload.email
     assert document.name == payload.name
-    assert document.password == "hashed::plain-text"
-    assert document.roles == [RoleOption.ADMIN]
+    assert document.file_url == payload.file_url
+    assert document.source == payload.source
     db.add.assert_called_once_with(document)
+
+
+@pytest.mark.asyncio
+async def test_create_multiple_builds_documents_and_adds_all_to_session():
+    db = SimpleNamespace(add_all=Mock())
+    repo = DocumentRepository(db)
+    payloads = [
+        CreateDocumentRequest(
+            name="Doc One",
+            file_url="https://contoso.example/docs/1.pdf",
+            library_name="Shared Documents",
+            library_id="library-1",
+            site_url="https://contoso.sharepoint.com/sites/demo",
+            parent_folder_path="/general",
+            source="sharepoint",
+            file_metadata={"etag": "etag-1"},
+            last_modified="2024-01-01T00:00:00Z",
+            file_type="pdf",
+            file_size=100,
+        ),
+        CreateDocumentRequest(
+            name="Doc Two",
+            file_url="https://contoso.example/docs/2.pdf",
+            library_name="Shared Documents",
+            library_id="library-1",
+            site_url="https://contoso.sharepoint.com/sites/demo",
+            parent_folder_path="/general",
+            source="sharepoint",
+            file_metadata={"etag": "etag-2"},
+            last_modified="2024-01-02T00:00:00Z",
+            file_type="pdf",
+            file_size=200,
+        ),
+    ]
+
+    documents = await repo.create_multiple(payloads)
+
+    assert len(documents) == 2
+    assert [document.name for document in documents] == ["Doc One", "Doc Two"]
+    db.add_all.assert_called_once_with(documents)
 
 
 @pytest.mark.asyncio
@@ -79,47 +103,47 @@ async def test_get_by_id_uses_session_get():
 
 
 @pytest.mark.asyncio
-async def test_get_by_email_returns_single_document():
-    document = SimpleNamespace(id=7, email="document@example.com")
+async def test_get_last_batch_document_returns_single_document():
+    document = SimpleNamespace(id=7)
     db = AsyncMock()
-    db.execute.return_value = FakeExecuteResult(value=document)
+    db.execute.return_value = SimpleNamespace(
+        scalar_one_or_none=Mock(return_value=document)
+    )
     repo = DocumentRepository(db)
 
-    result = await repo.get_by_email("document@example.com")
+    result = await repo.get_last_batch_document("sharepoint")
 
     assert result is document
     db.execute.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_update_hashes_password_and_applies_fields(monkeypatch):
+async def test_update_applies_fields_to_existing_document():
+    timestamp = datetime(2024, 2, 1, tzinfo=UTC)
     document = SimpleNamespace(
         id=3,
-        email="old@example.com",
         name="Old Name",
-        password="old-hash",
-        roles=[RoleOption.DOCUMENT],
+        file_size=10,
+        ingest_status="started",
+        last_modified=datetime(2024, 1, 1, tzinfo=UTC),
     )
     db = AsyncMock()
     repo = DocumentRepository(db)
     payload = UpdateDocumentRequest(
-        email="new@example.com",
-        password="new-password",
-        roles=[RoleOption.ADMIN],
-    )
-
-    monkeypatch.setattr(
-        "app.repositories.document_repository.hash_password",
-        lambda password: f"hashed::{password}",
+        name="New Name",
+        file_size=25,
+        ingest_status="completed",
+        last_modified="2024-02-01T00:00:00Z",
     )
     repo.get_by_id = AsyncMock(return_value=document)
 
     result = await repo.update(3, payload)
 
     assert result is document
-    assert document.email == "new@example.com"
-    assert document.password == "hashed::new-password"
-    assert document.roles == [RoleOption.ADMIN]
+    assert document.name == "New Name"
+    assert document.file_size == 25
+    assert document.ingest_status == "completed"
+    assert document.last_modified == timestamp
 
 
 @pytest.mark.asyncio

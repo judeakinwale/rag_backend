@@ -21,7 +21,9 @@ class Document(Base):
 
     # specific to files from sharepoint libraries
     library_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    library_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    library_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, index=True
+    )
 
     # root url of the document source
     site_url: Mapped[str] = mapped_column(Text)
@@ -38,12 +40,15 @@ class Document(Base):
 
     # track when the ingest batch processing this document was initiated
     # (for use when checking for untracked documents)
-    ingest_initiated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
+    ingest_initiated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ingest_status: Mapped[IngestStatus] = mapped_column(
         String(50), server_default="started"
+    )
+    # track when the batch before the one that processed this document, was initiated on the service
+    # (for use when forcing reprocessing of documents processed in this document's batch)
+    prev_batch_ingest_init: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(

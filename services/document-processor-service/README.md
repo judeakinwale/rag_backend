@@ -1,6 +1,6 @@
 # document-processor-service
 
-FastAPI-based document processing management service for the RAG backend.
+FastAPI-based document processor management service for the RAG backend.
 
 ## Development
 

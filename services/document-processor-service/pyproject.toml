@@ -1,7 +1,7 @@
 [project]
 name = "document-processor-service"
 version = "0.1.0"
-description = "document processor backend service for the RAG backend"
+description = "document-processor backend service for the RAG backend"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

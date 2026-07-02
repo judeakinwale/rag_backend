@@ -17,7 +17,7 @@ from rag_packages.shared.database.base import Base
 from app.core.config import settings
 
 # ! import all models here to ensure they are registered with SQLAlchemy's metadata
-from app.models.user import User  # noqa: F401
+from app.models.document import Document  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
