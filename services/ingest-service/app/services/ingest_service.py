@@ -12,8 +12,8 @@ from app.events.ingest_events import (
 from app.core.redis import generate_cache_key, r
 from app.core.config import settings
 from app.dto.document_dto import (
-    CreateDocumentRequest,
     DocSource,
+    CreateDocumentRequest,
     DocumentResponse,
     UpdateDocumentRequest,
 )
