@@ -10,12 +10,12 @@ from app.events.document_events import (
 from app.models.document import Document
 from app.core.redis import generate_cache_key, r
 from app.dto.document_dto import (
+    DocSource,
     CreateDocumentRequest,
     UpdateDocumentRequest,
     DocumentResponse,
 )
 from rag_packages.shared.database.uow import UnitOfWork
-from rag_packages.contracts.types.document import DocSource
 from rag_packages.shared.database.query import QueryParams
 from rag_packages.shared.exception.exception import NotFoundException
 
