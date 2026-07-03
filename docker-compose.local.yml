@@ -29,7 +29,7 @@ services:
   #   environment:
   #     WATCHFILES_FORCE_POLLING: "true"
   #   command: >
-  #     python -m uvicorn app.main:app 
+  #     python -m uvicorn app.main:app
   #     --host 0.0.0.0 --port 8000 --reload
   #   depends_on: [kafka, redis, postgres]
   #   networks: [backend]
@@ -55,54 +55,51 @@ services:
   #   ports: ["8003:8000", "5680:5678"]
   #   volumes:
   #     - ./services/rag-service:/app
-  #   environment:
-  #     QDRANT_ADDR: qdrant:6334
   #   env_file:
   #     - .env
   #     - ./services/rag-service/.env
   #   environment:
+  #     QDRANT_ADDR: qdrant:6334
   #     WATCHFILES_FORCE_POLLING: "true"
   #   command: >
-  #     python -m uvicorn app.main:app 
+  #     python -m uvicorn app.main:app
   #     --host 0.0.0.0 --port 8000 --reload
   #   depends_on: [kafka, redis, postgres, qdrant]
   #   networks: [backend]
 
-  # ingest-service:
-  #   build: ./services/ingest-service
-  #   ports: ["8004:8000", "5681:5678"]
-  #   volumes:
-  #     - ./services/ingest-service:/app
-  #   environment:
-  #     QDRANT_ADDR: qdrant:6334
-  #   env_file:
-  #     - .env
-  #     - ./services/ingest-service/.env
-  #   environment:
-  #     WATCHFILES_FORCE_POLLING: "true"
-  #   command: >
-  #     python -m uvicorn app.main:app 
-  #     --host 0.0.0.0 --port 8000 --reload
-  #   depends_on: [kafka, redis, postgres, qdrant]
-  #   networks: [backend]
+  ingest-service:
+    build: ./services/ingest-service
+    ports: ["8004:8000", "5681:5678"]
+    volumes:
+      - ./services/ingest-service:/app
+    env_file:
+      - .env
+      - ./services/ingest-service/.env
+    environment:
+      QDRANT_ADDR: qdrant:6334
+      WATCHFILES_FORCE_POLLING: "true"
+    command: >
+      python -m uvicorn app.main:app
+      --host 0.0.0.0 --port 8000 --reload
+    depends_on: [kafka, redis, postgres, qdrant]
+    networks: [backend]
 
-  # document-processor-service:
-  #   build: ./services/document-processor-service
-  #   ports: ["8005:8000", "5682:5678"]
-  #   volumes:
-  #     - ./services/document-processor-service:/app
-  #   environment:
-  #     QDRANT_ADDR: qdrant:6334
-  #   env_file:
-  #     - .env
-  #     - ./services/document-processor-service/.env
-  #   environment:
-  #     WATCHFILES_FORCE_POLLING: "true"
-  #   command: >
-  #     python -m uvicorn app.main:app 
-  #     --host 0.0.0.0 --port 8000 --reload
-  #   depends_on: [kafka, redis, postgres, qdrant]
-  #   networks: [backend]
+  document-processor-service:
+    build: ./services/document-processor-service
+    ports: ["8005:8000", "5682:5678"]
+    volumes:
+      - ./services/document-processor-service:/app
+    env_file:
+      - .env
+      - ./services/document-processor-service/.env
+    environment:
+      QDRANT_ADDR: qdrant:6334
+      WATCHFILES_FORCE_POLLING: "true"
+    command: >
+      python -m uvicorn app.main:app
+      --host 0.0.0.0 --port 8000 --reload
+    depends_on: [kafka, redis, postgres, qdrant]
+    networks: [backend]
 
   # notification-service:
   #   build: ./services/notification-service

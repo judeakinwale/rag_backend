@@ -19,6 +19,17 @@ from app.core.config import settings
 # ! import all models here to ensure they are registered with SQLAlchemy's metadata
 from app.models.user import User  # noqa: F401
 
+# ? custom config, including the version_table and ownership check as Base is shared across multiple services
+VERSION_TABLE = "alembic_version_user_service"
+OWNED_TABLES = {"users"}
+
+
+def include_object(object, name, type_, reflected, compare_to):
+    if type_ == "table":
+        return name in OWNED_TABLES
+    return True
+
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -65,6 +76,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        # version_table=VERSION_TABLE,
     )
 
     with context.begin_transaction():
@@ -73,7 +85,11 @@ def run_migrations_offline() -> None:
 
 def do_run_migrations(connection):
     context.configure(
-        connection=connection, target_metadata=target_metadata, compare_type=True
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+        include_object=include_object,
+        version_table=VERSION_TABLE,
     )
 
     with context.begin_transaction():

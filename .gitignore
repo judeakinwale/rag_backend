@@ -6,6 +6,9 @@ dist/
 wheels/
 *.egg-info
 
+# Currently excluded wip infrastructure
+infrastructure/alembic/
+
 # Currently excluded services
 services/auth-service/
 # services/user-service/
