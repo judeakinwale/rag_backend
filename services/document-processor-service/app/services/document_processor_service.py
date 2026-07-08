@@ -3,8 +3,7 @@ import asyncio
 import base64
 import logging
 from tempfile import NamedTemporaryFile
-from typing import Any, Literal, TypeAlias
-from pydantic import Field
+from typing import TypeAlias
 from docling.chunking import HybridChunker
 from docling.document_converter import DocumentConverter
 from docling_core.types.doc import DoclingDocument, TableItem, PictureItem, BoundingBox
@@ -14,43 +13,22 @@ from langchain_text_splitters import (
     RecursiveCharacterTextSplitter,
 )
 from langchain_core.documents import Document as LangChainDocument
-from packages.rag_packages.src.rag_packages.contracts.dto.shared_dto import BaseDTO
+from app.core.config import settings
+from app.dto.document_processor_dto import (
+    FileType,
+    FILE_TYPES,
+    ChunkStrategy,
+    ChunkDetails,
+    ProcessedChunk,
+    ProcessedDocumentDTO,
+)
 
 
 logger = logging.getLogger(__name__)
 
-FileType = Literal[
-    "pdf", "docx", "doc", "xlsx", "xls", "png", "jpg", "jpeg", "tiff", "bmp"
-]
-FILE_TYPES = {"pdf", "docx", "doc", "xlsx", "xls", "png", "jpg", "jpeg", "tiff", "bmp"}
 
 MdHeaderSplitter: TypeAlias = MarkdownHeaderTextSplitter
 CharSplitter: TypeAlias = RecursiveCharacterTextSplitter
-
-ChunkStrategy: TypeAlias = Literal["docling", "markdown"]
-
-
-class ChunkDetails(BaseDTO):
-    pages: list[int] = Field(default_factory=list)
-    headings: list[str] = Field(default_factory=list)
-    captions: list[str] = Field(default_factory=list)
-    tables: list[TableItem] = Field(default_factory=list)
-    figures: list[PictureItem] = Field(default_factory=list)
-    bbox: list[BoundingBox] = Field(default_factory=list)
-
-
-class ProcessedChunk(BaseDTO):
-    index: int
-    text: str
-    details: ChunkDetails | None = None
-    metadata: dict[str, Any] | None = None
-
-
-class ProcessedDocumentDTO(BaseDTO):
-    file_name: str | None = None
-    file_type: FileType
-    markdown: str
-    chunks: list[ProcessedChunk]
 
 
 class DocumentProcessor:
@@ -58,15 +36,19 @@ class DocumentProcessor:
         self,
         header_splitter: MdHeaderSplitter | None = None,
         char_splitter: CharSplitter | None = None,
+        chunk_size: int = 1000,
+        chunk_overlap: int = 200,
     ):
         self.converter = DocumentConverter()
         self.header_splitter = header_splitter
         self.char_splitter = char_splitter
+        self._chunk_size = chunk_size
+        self._chunk_overlap = chunk_overlap
         self.chunker = HybridChunker()
 
-    def _get_splitters(
-        self, chunk_size: int = 1000, chunk_overlap: int = 200, **kwargs
-    ) -> tuple[MdHeaderSplitter, CharSplitter]:
+    def _get_splitters(self, **kwargs) -> tuple[MdHeaderSplitter, CharSplitter]:
+        # NOTE: if race condition is observed, consider using a lock for thread safety,
+        # or not updating the splitters in place, returning new instances instead
         if self.header_splitter is None:
             headers_to_split_on = [
                 ("#", "Header 1"),
@@ -80,8 +62,8 @@ class DocumentProcessor:
 
         if self.char_splitter is None:
             self.char_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=chunk_size,
-                chunk_overlap=chunk_overlap,
+                chunk_size=self._chunk_size,
+                chunk_overlap=self._chunk_overlap,
                 # the first two separators are for headings and in this case, redundant
                 separators=["\n# ", "\n## ", "\n\n", "\n", " ", ""],
             )
@@ -95,9 +77,15 @@ class DocumentProcessor:
 
     def _get_file_binary(self, file_b64: str) -> bytes:
         try:
-            return base64.b64decode(file_b64, validate=True)
+            decoded = base64.b64decode(file_b64, validate=True)
+
+            if len(decoded) > settings.MAX_FILE_SIZE:
+                raise ValueError("File too large")
+
+            return decoded
+
         except Exception as e:
-            raise ValueError("Invalid base64 input") from e
+            raise ValueError(f"Invalid base64 input: {e}") from e
 
     def _create_temporary_file(self, file: bytes, file_type: FileType) -> Path:
         if file_type not in FILE_TYPES:
@@ -217,10 +205,8 @@ class DocumentProcessor:
     def chunk_text(
         self,
         text: str,
-        chunk_size: int = 1000,
-        chunk_overlap: int = 200,
     ) -> list[ProcessedChunk]:
-        header_splitter, char_splitter = self._get_splitters(chunk_size, chunk_overlap)
+        header_splitter, char_splitter = self._get_splitters()
 
         header_chunks = header_splitter.split_text(text)
         chunks = char_splitter.split_documents(header_chunks)
@@ -248,8 +234,6 @@ class DocumentProcessor:
         file_b64: str,
         file_type: FileType,
         file_name: str | None = None,
-        chunk_size: int = 1000,
-        chunk_overlap: int = 200,
         chunk_strategy: ChunkStrategy = "docling",
     ) -> ProcessedDocumentDTO:
 
@@ -259,16 +243,10 @@ class DocumentProcessor:
         match chunk_strategy:
             case "docling":
                 processed_chunks = await asyncio.to_thread(
-                    self.chunk_document,
-                    document,
+                    self.chunk_document, document
                 )
             case "markdown":
-                processed_chunks = await asyncio.to_thread(
-                    self.chunk_text,
-                    text,
-                    chunk_size,
-                    chunk_overlap,
-                )
+                processed_chunks = await asyncio.to_thread(self.chunk_text, text)
             case _:
                 raise ValueError(f"Invalid chunk strategy: {chunk_strategy}")
 
@@ -278,6 +256,3 @@ class DocumentProcessor:
             markdown=text,
             chunks=processed_chunks,
         )
-
-    def close(self):
-        self._clear_splitters()
