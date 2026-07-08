@@ -11,6 +11,12 @@ sqlalchemy
 asyncpg
 alembic
 
+qdrant-client[fastembed]
+
+docling
+# rapidocr
+langchain-text-splitters
+
 argon2-cffi # for password hashing and verification
 
 aiokafka # or confluent-kafka or kafka-python

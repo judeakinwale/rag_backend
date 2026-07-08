@@ -11,6 +11,12 @@ sqlalchemy
 asyncpg
 alembic
 
+qdrant-client[fastembed]
+
+docling
+# rapidocr
+langchain-text-splitters
+
 argon2-cffi # for password hashing and verification
 
 aiokafka # or confluent-kafka or kafka-python
@@ -23,10 +29,15 @@ grpcio
 grpcio-tools
 protobuf
 
+celery
+
 debugpy
 
 pytest
 pytest-asyncio
+
+azure-identity
+msgraph-sdk
 
 # -e ../../packages/shared
 # -e ../../packages/contracts
