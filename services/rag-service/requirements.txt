@@ -1,15 +1,27 @@
-fastapi[standard]
 uvicorn[standard]
+fastapi[standard]
 httpx
 
 python-dotenv
 pydantic-settings
 
+python-jose[cryptography]
+
 sqlalchemy
 asyncpg
 alembic
 
-kafka-python   # or confluent-kafka
+# ? specialized packages for vector db management, vector search and embeddings
+# ? handled in document-processor service 
+# qdrant-client[fastembed]
+
+# docling
+# # rapidocr
+# langchain-text-splitters
+
+argon2-cffi # for password hashing and verification
+
+aiokafka # or confluent-kafka or kafka-python
 redis
 tenacity
 
@@ -19,8 +31,19 @@ grpcio
 grpcio-tools
 protobuf
 
+celery
+
 debugpy
+
+pytest
+pytest-asyncio
+
+azure-identity
+msgraph-sdk
 
 # -e ../../packages/shared
 # -e ../../packages/contracts
--e ../../
+# -e ../../
+
+git+https://github.com/judeakinwale/rag_packages.git@main
+

@@ -1,7 +1,39 @@
 [project]
 name = "rag-service"
 version = "0.1.0"
-description = "Add your description here"
+description = "rag backend service for the RAG backend"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+	"alembic",
+	"aiokafka",
+	"argon2-cffi",
+	"asyncpg",
+	"debugpy",
+	"fastapi[standard]",
+	"grpcio",
+	"grpcio-tools",
+	"httpx",
+	"orjson",
+	"protobuf",
+	"pydantic-settings",
+	"python-dotenv",
+	"rag-packages @ git+https://github.com/judeakinwale/rag_packages.git@main",
+	"redis",
+	"sqlalchemy",
+	"tenacity",
+	"uvicorn[standard]",
+]
+
+[project.optional-dependencies]
+test = [
+	"pytest>=8.0",
+	"pytest-asyncio>=0.23",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
