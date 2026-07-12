@@ -17,6 +17,16 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str
 
+    INGEST_SERVICE_ORIGIN: str
+
+    MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10 MB in bytes
+    CHUNK_SIZE: int = 1000
+    CHUNK_OVERLAP: int = 200
+
+    QDRANT_HOSTNAME: str
+    QDRANT_PORT: str
+    QDRANT_GRPC_PORT: str
+
     PGADMIN_DEFAULT_EMAIL: str
     PGADMIN_DEFAULT_PASSWORD: str
 
@@ -48,18 +58,6 @@ class Settings(BaseSettings):
         env_file=BASE_DIR / ".env",  # ".env"
         extra="ignore",
     )
-
-    # # ? for comma separated string. not needed for json string
-    # @field_validator("SHAREPOINT_LIBRARY_IDS", mode="before")
-    # @classmethod
-    # def parse_sharepoint_library_ids(cls, value: Any) -> list[str] | None:
-    #     if value is None or value == "":
-    #         return None
-
-    #     if isinstance(value, str):
-    #         return [item.strip() for item in value.split(",") if item.strip()] or None
-
-    #     return value
 
 
 settings = Settings()

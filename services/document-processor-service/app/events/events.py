@@ -1,23 +1,28 @@
-from app.events import ingest_events, document_events
+from app.events import vector_document_events
+from rag_packages.contracts.events import ingest
 from rag_packages.contracts.events.shared_events import DLQEvent
 
 
 EVENTS = {
-    "ingest.started": ingest_events.IngestStartedEvent,
+    "vector_document.created": vector_document_events.VectorDocumentCreatedEvent,
+    "vector_document.created.dlq": DLQEvent,
+    "vector_document.processed": vector_document_events.VectorDocumentProcessedEvent,
+    "vector_document.processed.dlq": DLQEvent,
+    "vector_document.updated": vector_document_events.VectorDocumentUpdatedEvent,
+    "vector_document.updated.dlq": DLQEvent,
+    "vector_document.softdeleted": vector_document_events.VectorDocumentSoftDeletedEvent,
+    "vector_document.softdeleted.dlq": DLQEvent,
+    "vector_document.deleted": vector_document_events.VectorDocumentDeletedEvent,
+    "vector_document.deleted.dlq": DLQEvent,
+    # __________________________________________________________________________
+    "ingest.started": ingest.IngestStartedEvent,
     "ingest.started.dlq": DLQEvent,
-    "ingest.processing": ingest_events.ProcessingStartedEvent,
+    "ingest.processing": ingest.ProcessingStartedEvent,
     "ingest.processing.dlq": DLQEvent,
-    "ingest.completed": ingest_events.IngestCompletedEvent,
+    "ingest.processing.completed": ingest.ProcessingCompletedEvent,
+    "ingest.processing.completed.dlq": DLQEvent,
+    "ingest.processing.failed": ingest.ProcessingFailedEvent,
+    "ingest.processing.failed.dlq": DLQEvent,
+    "ingest.completed": ingest.IngestCompletedEvent,
     "ingest.completed.dlq": DLQEvent,
-    # ________________________________________________________________
-    "document.created": document_events.DocumentCreatedEvent,
-    "document.created.dlq": DLQEvent,
-    "document.processed": document_events.DocumentProcessedEvent,
-    "document.processed.dlq": DLQEvent,
-    "document.updated": document_events.DocumentUpdatedEvent,
-    "document.updated.dlq": DLQEvent,
-    "document.softdeleted": document_events.DocumentSoftDeletedEvent,
-    "document.softdeleted.dlq": DLQEvent,
-    "document.deleted": document_events.DocumentDeletedEvent,
-    "document.deleted.dlq": DLQEvent,
 }

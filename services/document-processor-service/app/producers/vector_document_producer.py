@@ -1,58 +1,58 @@
 from rag_packages.shared.kafka.producer import KafkaProducer
-from app.events.document_events import (
-    DocumentCreatedEvent,
-    DocumentUpdatedEvent,
-    DocumentSoftDeletedEvent,
-    DocumentDeletedEvent,
+from app.events.vector_document_events import (
+    VectorDocumentCreatedEvent,
+    VectorDocumentUpdatedEvent,
+    VectorDocumentSoftDeletedEvent,
+    VectorDocumentDeletedEvent,
 )
 
 
-class DocumentProducer:
+class VectorDocumentProducer:
     def __init__(self, producer: KafkaProducer):
         self.producer = producer
 
     # document processed and stored in vector db before storing in db
     async def document_processed(
-        self, event: DocumentCreatedEvent, key: str | None = None
+        self, event: VectorDocumentCreatedEvent, key: str | None = None
     ):
         await self.producer.publish(
-            "document.processed",
+            "vector_document.processed",
             event.model_dump(),
             key,
         )
 
     async def document_created(
-        self, event: DocumentCreatedEvent, key: str | None = None
+        self, event: VectorDocumentCreatedEvent, key: str | None = None
     ):
         await self.producer.publish(
-            "document.created",
+            "vector_document.created",
             event.model_dump(),
             key,
         )
 
     async def document_updated(
-        self, event: DocumentUpdatedEvent, key: str | None = None
+        self, event: VectorDocumentUpdatedEvent, key: str | None = None
     ):
         await self.producer.publish(
-            "document.updated",
+            "vector_document.updated",
             event.model_dump(),
             key,
         )
 
     async def document_softdeleted(
-        self, event: DocumentSoftDeletedEvent, key: str | None = None
+        self, event: VectorDocumentSoftDeletedEvent, key: str | None = None
     ):
         await self.producer.publish(
-            "document.softdeleted",
+            "vector_document.softdeleted",
             event.model_dump(),
             key,
         )
 
     async def document_deleted(
-        self, event: DocumentDeletedEvent, key: str | None = None
+        self, event: VectorDocumentDeletedEvent, key: str | None = None
     ):
         await self.producer.publish(
-            "document.deleted",
+            "vector_document.deleted",
             event.model_dump(),
             key,
         )

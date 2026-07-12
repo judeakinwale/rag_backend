@@ -14,6 +14,7 @@ alembic
 qdrant-client[fastembed]
 
 docling
+docling-core[chunking-openai]
 # rapidocr
 langchain-text-splitters
 
