@@ -11,11 +11,13 @@ sqlalchemy
 asyncpg
 alembic
 
-qdrant-client[fastembed]
+# ? specialized packages for vector db management, vector search and embeddings
+# ? handled in document-processor service 
+# qdrant-client[fastembed]
 
-docling
-# rapidocr
-langchain-text-splitters
+# docling
+# # rapidocr
+# langchain-text-splitters
 
 argon2-cffi # for password hashing and verification
 
