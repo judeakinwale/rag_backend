@@ -10,9 +10,6 @@
 # from rag_packages.shared.processing.qdrant import QdrantService
 
 
-# SortDirection = Literal["asc", "desc"]
-
-
 # class VectorDocumentRepository:
 #     def __init__(self, db: AsyncSession):
 #         self.db = db

@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from app.api.v1.documents import router
 from app.dependencies.document import get_document_service
 from app.dependencies.ingest import get_sharepoint_service
-from app.dto.document_dto import DocumentResponse
+from rag_packages.contracts.dto.document import DocumentResponse
 
 
 TIMESTAMP = datetime(2024, 1, 1, tzinfo=UTC)

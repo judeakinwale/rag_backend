@@ -8,7 +8,7 @@ from app.core.config import Settings, settings
 from app.core.container import Container, container
 from app.core.db import async_session
 from app.core.redis import r
-from app.dto.ingest_dto import CreateIngestRequest
+from rag_packages.contracts.dto.ingest import CreateIngestRequest
 from app.services.sharepoint_service import SharepointService
 from rag_packages.shared.kafka.producer import KafkaProducer
 
@@ -107,7 +107,9 @@ class SharePointIngestPoller:
             await self.poll_once()
 
         while True:
-            print(f"Sleeping for {self.settings.SHAREPOINT_INGEST_POLL_INTERVAL_SECONDS} seconds before next poll")
-        
+            print(
+                f"Sleeping for {self.settings.SHAREPOINT_INGEST_POLL_INTERVAL_SECONDS} seconds before next poll"
+            )
+
             await self.sleep(self.settings.SHAREPOINT_INGEST_POLL_INTERVAL_SECONDS)
             await self.poll_once()

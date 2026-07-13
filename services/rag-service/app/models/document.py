@@ -1,14 +1,11 @@
 from __future__ import annotations
-from typing import Any, Literal, TypeAlias
+from typing import Any
 from datetime import datetime
 from sqlalchemy import DateTime, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from rag_packages.shared.database.base import Base
-from rag_packages.contracts.types.shared_types import DocSource
-
-
-IngestStatus: TypeAlias = Literal["started", "processing", "completed", "failed"]
+from rag_packages.contracts.types.shared_types import DocSource, IngestStatus
 
 
 # document references stored in the database
@@ -42,7 +39,8 @@ class Document(Base):
     # (for use when checking for untracked documents)
     ingest_initiated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ingest_status: Mapped[IngestStatus] = mapped_column(
-        String(50), server_default="started"
+        String(50),
+        server_default=IngestStatus.STARTED,
     )
     # track when the batch before the one that processed this document, was initiated on the service
     # (for use when forcing reprocessing of documents processed in this document's batch)

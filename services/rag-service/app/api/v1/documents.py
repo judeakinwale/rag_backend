@@ -1,6 +1,6 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, Request, status, Query
-from app.dto.document_dto import (
+from rag_packages.contracts.dto.document import (
     DocumentAPIResponse,
     CreateDocumentRequest,
     UpdateDocumentRequest,
@@ -12,7 +12,7 @@ from app.dependencies.document import (
     DocumentService,
     DocumentProducer,
 )
-from app.dependencies.rag import get_sharepoint_service, SharepointService
+from app.dependencies.ingest import get_sharepoint_service, SharepointService
 from rag_packages.shared.database.query import QueryParams
 
 

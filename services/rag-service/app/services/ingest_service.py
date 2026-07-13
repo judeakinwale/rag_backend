@@ -3,40 +3,40 @@ from datetime import datetime
 from app.repositories.document_repository import DocumentRepository
 from app.services.document_service import DocumentService
 from app.services.sharepoint_service import SharepointService
-from app.producers.rag_producer import RagProducer
-from app.events.rag_events import (
-    RagStartedEvent,
+from rag_packages.shared.kafka.producers.ingest import IngestProducer
+from rag_packages.contracts.events.ingest import (
+    IngestStartedEvent,
     ProcessingStartedEvent,
-    RagCompletedEvent,
+    IngestCompletedEvent,
 )
 from app.core.redis import generate_cache_key, r
 from app.core.config import settings
-from app.dto.document_dto import (
+from rag_packages.contracts.dto.document import (
     DocSource,
     CreateDocumentRequest,
     DocumentResponse,
     UpdateDocumentRequest,
 )
-from app.dto.rag_dto import (
-    CreateRagRequest,
-    CompleteRagRequest,
-    RagResponse,
+from rag_packages.contracts.dto.ingest import (
+    CreateIngestRequest,
+    CompleteIngestRequest,
+    IngestResponse,
 )
 from rag_packages.shared.database.uow import UnitOfWork
 from rag_packages.shared.database.query import QueryParams
 
 
-class RagService:
+class IngestService:
     default_library_ids: list[str] = settings.SHAREPOINT_LIBRARY_IDS
 
     def __init__(
         self,
         uow: UnitOfWork,
-        # repo: RagRepository,
+        # repo: IngestRepository,
         doc_repo: DocumentRepository,
         document_service: DocumentService,
         sharepoint_service: SharepointService,
-        producer: RagProducer,
+        producer: IngestProducer,
         # outbox_repo: None = None,
         document_source: DocSource = "sharepoint",
     ):
@@ -67,12 +67,12 @@ class RagService:
             **extra,
         )
 
-    async def start_sharepoint_rag(
-        self, payload: CreateRagRequest
-    ) -> list[RagResponse]:
+    async def start_sharepoint_ingest(
+        self, payload: CreateIngestRequest
+    ) -> list[IngestResponse]:
         if self.document_source != "sharepoint":
             raise ValueError(
-                f"Document source is set to {self.document_source}. Cannot start SharePoint rag."
+                f"Document source is set to {self.document_source}. Cannot start SharePoint ingest."
             )
 
         library_ids = payload.library_ids or self.default_library_ids
@@ -83,24 +83,24 @@ class RagService:
         cached = await r.get(cache_key)
 
         if cached is not None:
-            return RagResponse.model_validate_json(cached)
+            return IngestResponse.model_validate_json(cached)
 
-        rag_initiated_at = datetime.now()
+        ingest_initiated_at = datetime.now()
 
-        # get document from last created batch from the documents table and get the rag_initiated_at
+        # get document from last created batch from the documents table and get the ingest_initiated_at
         last_doc = await self.document_service.get_document_in_last_batch(
             self.document_source
         )
 
-        last_check_at = last_doc.rag_initiated_at if last_doc else None
+        last_check_at = last_doc.ingest_initiated_at if last_doc else None
         if payload.force_reprocess_all:
             last_check_at = None
 
         if last_doc is not None and payload.force_reprocess:
-            last_check_at = last_doc.prev_batch_rag_init
+            last_check_at = last_doc.prev_batch_ingest_init
 
         # last_check_at = (
-        #     last_doc.rag_initiated_at
+        #     last_doc.ingest_initiated_at
         #     if last_doc and not payload.force_reprocess_all
         #     else None
         # )
@@ -111,17 +111,17 @@ class RagService:
 
         # extra_payload = {
         #     "source": self.document_source,
-        #     "rag_initiated_at": rag_initiated_at,
+        #     "ingest_initiated_at": ingest_initiated_at,
         # }
         extra_payload = UpdateDocumentRequest(
             source=self.document_source,
-            rag_status="started",
-            rag_initiated_at=rag_initiated_at,
-            prev_batch_rag_init=last_check_at,
+            ingest_status="started",
+            ingest_initiated_at=ingest_initiated_at,
+            prev_batch_ingest_init=last_check_at,
         )
         # # TODO: change this to a forloop and use a new method in the document service to
         # # check for existing documents using the file_url and library_id
-        # # only create new documents if they don't exist or have been modified since the last rag_initiated_at
+        # # only create new documents if they don't exist or have been modified since the last ingest_initiated_at
         # # if payload.force_reprocess is True, then update existing documents with the reprocessed data
         # doc_payloads = [
         #     self.sp_doc_to_create_doc_payload(sp_doc, extra=extra_payload)
@@ -168,8 +168,8 @@ class RagService:
         to_process_docs = updated_docs + created_docs
         to_process_doc_ids = set(updated_doc_ids)
 
-        event = RagStartedEvent(library_ids=library_ids, documents=to_process_docs)
-        await self.producer.rag_started(event)
+        event = IngestStartedEvent(library_ids=library_ids, documents=to_process_docs)
+        await self.producer.ingest_started(event)
 
         docs_len = len(to_process_docs)
         for index, document in enumerate(to_process_docs):
@@ -182,20 +182,20 @@ class RagService:
             )
             await self.producer.processing_started(processing_event)
 
-        response = RagResponse(library_ids=library_ids, documents=to_process_docs)
+        response = IngestResponse(library_ids=library_ids, documents=to_process_docs)
 
         await r.set(cache_key, (response.model_dump_json()))
         return response
 
-    async def complete_sharepoint_rag(
-        self, payload: CompleteRagRequest
-    ) -> RagResponse | None:
+    async def complete_sharepoint_ingest(
+        self, payload: CompleteIngestRequest
+    ) -> IngestResponse | None:
         library_ids = payload.library_ids or self.default_library_ids
 
         params = QueryParams(
             ids=payload.document_ids,
-            # the rag_initiated_at is set at once for all documents in the batch
-            filters={"rag_initiated_at": payload.rag_initiated_at},
+            # the ingest_initiated_at is set at once for all documents in the batch
+            filters={"ingest_initiated_at": payload.ingest_initiated_at},
         )
         documents, _ = await self.document_service.get_documents(params)
         document_ids: list[str] = []
@@ -204,16 +204,16 @@ class RagService:
             for document in documents:
                 document_ids.append(document.id)
 
-                update_payload = UpdateDocumentRequest(rag_status="completed")
+                update_payload = UpdateDocumentRequest(ingest_status="completed")
                 await self.doc_repo.update(document.id, update_payload)
 
             await self.uow.session.flush()
 
-        event = RagCompletedEvent(
+        event = IngestCompletedEvent(
             document_ids=document_ids, source=self.document_source
         )
-        await self.producer.rag_completed(event)
+        await self.producer.ingest_completed(event)
 
-        response = RagResponse(library_ids=library_ids, documents=documents)
+        response = IngestResponse(library_ids=library_ids, documents=documents)
 
         return response

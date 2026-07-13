@@ -1,15 +1,17 @@
-from app.consumers import document_consumers, rag_consumers
+from app.consumers import document_consumers, ingest_consumers
 
 
 TOPICS = [
-    "rag.started",
-    "rag.started.dlq",
-    "rag.processing",
-    "rag.processing.dlq",
-    "rag.processing_completed",
-    "rag.processing_completed.dlq",
-    "rag.completed",
-    "rag.completed.dlq",
+    "ingest.started",
+    "ingest.started.dlq",
+    "ingest.processing",
+    "ingest.processing.dlq",
+    "ingest.processing.completed",
+    "ingest.processing.completed.dlq",
+    "ingest.processing.failed",
+    "ingest.processing.failed.dlq",
+    "ingest.completed",
+    "ingest.completed.dlq",
     # ________________________
     "document.created",
     "document.created.dlq",
@@ -24,12 +26,16 @@ TOPICS = [
 ]
 
 HANDLERS = {
-    "rag.started": rag_consumers.handle_rag_started,
-    "rag.started.dlq": rag_consumers.handle_rag_started_dlq,
-    "rag.processing": rag_consumers.handle_processing_started,
-    "rag.processing.dlq": rag_consumers.handle_processing_started_dlq,
-    "rag.completed": rag_consumers.handle_rag_completed,
-    "rag.completed.dlq": rag_consumers.handle_rag_completed_dlq,
+    "ingest.started": ingest_consumers.handle_ingest_started,
+    "ingest.started.dlq": ingest_consumers.handle_ingest_started_dlq,
+    "ingest.processing": ingest_consumers.handle_processing_started,
+    "ingest.processing.dlq": ingest_consumers.handle_processing_started_dlq,
+    "ingest.processing.completed": ingest_consumers.handle_processing_completed,
+    "ingest.processing.completed.dlq": ingest_consumers.handle_processing_completed_dlq,
+    "ingest.processing.failed": ingest_consumers.handle_processing_failed,
+    "ingest.processing.failed.dlq": ingest_consumers.handle_processing_failed_dlq,
+    "ingest.completed": ingest_consumers.handle_ingest_completed,
+    "ingest.completed.dlq": ingest_consumers.handle_ingest_completed_dlq,
     # __________________________________________________________________________
     "document.created": document_consumers.handle_document_created,
     "document.created.dlq": document_consumers.handle_document_created_dlq,

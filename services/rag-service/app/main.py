@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from app.core.lifespan import lifespan
 from app.core.config import settings
 from app.api.v1.documents import router as documents_router_v1
-from app.api.v1.rag import router as rag_router_v1
+from app.api.v1.ingest import router as ingest_router_v1
 
 from rag_packages.shared.middleware.request_id import RequestIdMiddleware
 from rag_packages.shared.logging.middleware import LoggingMiddleware
@@ -31,7 +31,7 @@ app.add_middleware(
 )
 
 app.include_router(documents_router_v1, prefix="/api/v1")
-app.include_router(rag_router_v1, prefix="/api/v1")
+app.include_router(ingest_router_v1, prefix="/api/v1")
 
 
 @app.get("/health")

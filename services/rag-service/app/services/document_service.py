@@ -2,14 +2,14 @@ from datetime import datetime
 import orjson
 from app.repositories.document_repository import DocumentRepository
 from app.producers.document_producer import DocumentProducer
-from app.events.document_events import (
+from rag_packages.contracts.events.document import (
     DocumentCreatedEvent,
     DocumentUpdatedEvent,
     DocumentDeletedEvent,
 )
 from app.models.document import Document
 from app.core.redis import generate_cache_key, r
-from app.dto.document_dto import (
+from rag_packages.contracts.dto.document import (
     DocSource,
     CreateDocumentRequest,
     UpdateDocumentRequest,

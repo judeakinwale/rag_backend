@@ -5,12 +5,12 @@ from starlette.requests import Request
 
 from app.core.container import Container
 from app.dependencies import document as document_dependencies
-from app.dependencies import rag as rag_dependencies
+from app.dependencies import ingest as ingest_dependencies
 from app.producers.document_producer import DocumentProducer
-from app.producers.rag_producer import RagProducer
+from rag_packages.shared.kafka.producers.ingest import IngestProducer
 from app.repositories.document_repository import DocumentRepository
 from app.services.document_service import DocumentService
-from app.services.rag_service import RagService
+from app.services.ingest_service import IngestService
 from rag_packages.shared.database.uow import UnitOfWork
 
 
@@ -49,31 +49,31 @@ def test_container_creates_document_service_with_explicit_document_producer():
     assert service.producer is producer
 
 
-def test_container_creates_rag_producer_with_kafka_producer():
+def test_container_creates_ingest_producer_with_kafka_producer():
     container = Container()
     kafka_producer = SimpleNamespace()
 
-    producer = container.rag_producer(kafka_producer)
+    producer = container.ingest_producer(kafka_producer)
 
-    assert isinstance(producer, RagProducer)
+    assert isinstance(producer, IngestProducer)
     assert producer.producer is kafka_producer
 
 
-def test_container_creates_rag_service_with_explicit_dependencies():
+def test_container_creates_ingest_service_with_explicit_dependencies():
     container = Container()
     db = SimpleNamespace()
     producer = SimpleNamespace()
     document_service = SimpleNamespace()
     sharepoint_service = SimpleNamespace()
 
-    service = container.rag_service(
+    service = container.ingest_service(
         db,
-        rag_producer=producer,
+        ingest_producer=producer,
         document_service=document_service,
         sharepoint_service=sharepoint_service,
     )
 
-    assert isinstance(service, RagService)
+    assert isinstance(service, IngestService)
     assert isinstance(service.uow, UnitOfWork)
     assert service.uow.session is db
     assert isinstance(service.doc_repo, DocumentRepository)
@@ -139,7 +139,7 @@ def test_get_document_service_uses_container_factory(monkeypatch):
     assert calls == [(db, producer, None)]
 
 
-def test_get_rag_producer_uses_request_app_state():
+def test_get_ingest_producer_uses_request_app_state():
     kafka_producer = SimpleNamespace()
     app = FastAPI()
     app.state.kafka_producer = kafka_producer
@@ -153,9 +153,9 @@ def test_get_rag_producer_uses_request_app_state():
         }
     )
 
-    producer = rag_dependencies.get_rag_producer(request)
+    producer = ingest_dependencies.get_ingest_producer(request)
 
-    assert isinstance(producer, RagProducer)
+    assert isinstance(producer, IngestProducer)
     assert producer.producer is kafka_producer
 
 
@@ -173,12 +173,12 @@ def test_get_sharepoint_service_uses_request_app_state():
         }
     )
 
-    service = rag_dependencies.get_sharepoint_service(request)
+    service = ingest_dependencies.get_sharepoint_service(request)
 
     assert service is sharepoint_service
 
 
-def test_get_rag_service_uses_container_factory(monkeypatch):
+def test_get_ingest_service_uses_container_factory(monkeypatch):
     db = SimpleNamespace()
     producer = SimpleNamespace()
     document_service = SimpleNamespace()
@@ -186,9 +186,9 @@ def test_get_rag_service_uses_container_factory(monkeypatch):
     sentinel = object()
     calls = []
 
-    def fake_rag_service(
+    def fake_ingest_service(
         arg_db,
-        rag_producer=None,
+        ingest_producer=None,
         kafka_producer=None,
         document_service=None,
         sharepoint_service=None,
@@ -196,7 +196,7 @@ def test_get_rag_service_uses_container_factory(monkeypatch):
         calls.append(
             (
                 arg_db,
-                rag_producer,
+                ingest_producer,
                 kafka_producer,
                 document_service,
                 sharepoint_service,
@@ -204,9 +204,9 @@ def test_get_rag_service_uses_container_factory(monkeypatch):
         )
         return sentinel
 
-    monkeypatch.setattr(rag_dependencies.container, "rag_service", fake_rag_service)
+    monkeypatch.setattr(ingest_dependencies.container, "ingest_service", fake_ingest_service)
 
-    service = rag_dependencies.get_rag_service(
+    service = ingest_dependencies.get_ingest_service(
         db,
         producer,
         document_service,

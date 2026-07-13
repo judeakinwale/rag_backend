@@ -1,22 +1,22 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, Request, status, Query
 from app.core.config import settings
-from app.dto.rag_dto import (
-    RagAPIResponse,
-    CreateRagRequest,
-    CompleteRagRequest,
+from rag_packages.contracts.dto.ingest import (
+    IngestAPIResponse,
+    CreateIngestRequest,
+    CompleteIngestRequest,
 )
-from app.dependencies.rag import (
+from app.dependencies.ingest import (
     get_sharepoint_service,
-    get_rag_service,
-    get_rag_producer,
+    get_ingest_service,
+    get_ingest_producer,
     SharepointService,
-    RagService,
-    RagProducer,
+    IngestService,
+    IngestProducer,
 )
 from rag_packages.contracts.dto.shared_dto import APIListResponse
 
-router = APIRouter(prefix="/rag", tags=["Rag"])
+router = APIRouter(prefix="/ingest", tags=["Ingest"])
 
 
 @router.get(
@@ -60,42 +60,42 @@ async def get_sharepoint_documents(
 @router.post(
     "/sharepoint",
     status_code=status.HTTP_200_OK,
-    response_model=RagAPIResponse,
+    response_model=IngestAPIResponse,
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
-    summary="Start document rag from sharepoint document libraries",
+    summary="Start document ingest from sharepoint document libraries",
 )
-async def start_sharepoint_rag(
+async def start_sharepoint_ingest(
     request: Request,
-    body: CreateRagRequest,
-    service: RagService = Depends(get_rag_service),
-) -> RagAPIResponse:
-    created_rag = await service.start_sharepoint_rag(body)
+    body: CreateIngestRequest,
+    service: IngestService = Depends(get_ingest_service),
+) -> IngestAPIResponse:
+    created_ingest = await service.start_sharepoint_ingest(body)
 
-    return RagAPIResponse(
+    return IngestAPIResponse(
         success=True,
-        data=created_rag,
-        message="Rag started successfully",
+        data=created_ingest,
+        message="Ingest started successfully",
     )
 
 
 @router.post(
     "/sharepoint/complete",
     status_code=status.HTTP_200_OK,
-    response_model=RagAPIResponse,
+    response_model=IngestAPIResponse,
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
-    summary="Complete a sharepoint rag",
+    summary="Complete a sharepoint ingest",
 )
-async def complete_sharepoint_rag(
+async def complete_sharepoint_ingest(
     request: Request,
-    body: CompleteRagRequest,
-    service: RagService = Depends(get_rag_service),
-) -> RagAPIResponse:
-    completed_rag = await service.complete_sharepoint_rag(body)
+    body: CompleteIngestRequest,
+    service: IngestService = Depends(get_ingest_service),
+) -> IngestAPIResponse:
+    completed_ingest = await service.complete_sharepoint_ingest(body)
 
-    return RagAPIResponse(
+    return IngestAPIResponse(
         success=True,
-        data=completed_rag,
-        message="Rag completed successfully",
+        data=completed_ingest,
+        message="Ingest completed successfully",
     )
