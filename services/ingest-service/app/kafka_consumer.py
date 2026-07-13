@@ -6,6 +6,10 @@ TOPICS = [
     "ingest.started.dlq",
     "ingest.processing",
     "ingest.processing.dlq",
+    "ingest.processing.completed",
+    "ingest.processing.completed.dlq",
+    "ingest.processing.failed",
+    "ingest.processing.failed.dlq",
     "ingest.completed",
     "ingest.completed.dlq",
     # ________________________
@@ -26,6 +30,10 @@ HANDLERS = {
     "ingest.started.dlq": ingest_consumers.handle_ingest_started_dlq,
     "ingest.processing": ingest_consumers.handle_processing_started,
     "ingest.processing.dlq": ingest_consumers.handle_processing_started_dlq,
+    "ingest.processing.completed": ingest_consumers.handle_processing_completed,
+    "ingest.processing.completed.dlq": ingest_consumers.handle_processing_completed_dlq,
+    "ingest.processing.failed": ingest_consumers.handle_processing_failed,
+    "ingest.processing.failed.dlq": ingest_consumers.handle_processing_failed_dlq,
     "ingest.completed": ingest_consumers.handle_ingest_completed,
     "ingest.completed.dlq": ingest_consumers.handle_ingest_completed_dlq,
     # __________________________________________________________________________

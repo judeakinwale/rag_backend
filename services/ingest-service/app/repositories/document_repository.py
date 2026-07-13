@@ -1,12 +1,12 @@
-from typing import Any, Literal, overload
-
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.document import Document
-from app.dto.document_dto import DocSource, CreateDocumentRequest, UpdateDocumentRequest
+from rag_packages.contracts.dto.document import (
+    DocSource,
+    CreateDocumentRequest,
+    UpdateDocumentRequest,
+)
 from rag_packages.shared.database.query import QueryParams, get_model_page
-
-SortDirection = Literal["asc", "desc"]
 
 
 class DocumentRepository:

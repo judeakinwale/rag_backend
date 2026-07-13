@@ -5,8 +5,15 @@ from unittest.mock import AsyncMock
 import orjson
 import pytest
 
-from app.dto.document_dto import CreateDocumentRequest, UpdateDocumentRequest
-from app.events.document_events import DocumentCreatedEvent, DocumentDeletedEvent, DocumentUpdatedEvent
+from rag_packages.contracts.dto.document import (
+    CreateDocumentRequest,
+    UpdateDocumentRequest,
+)
+from rag_packages.contracts.events.document import (
+    DocumentCreatedEvent,
+    DocumentDeletedEvent,
+    DocumentUpdatedEvent,
+)
 from app.services import document_service as document_service_module
 from app.services.document_service import DocumentService
 from rag_packages.shared.database.query import QueryParams
@@ -123,9 +130,15 @@ async def test_get_documents_uses_cached_payload(monkeypatch):
             "is_deleted": False,
         }
     ]
-    redis_client = FakeRedis({"document_service:all": orjson.dumps((cached_documents, 1))})
+    redis_client = FakeRedis(
+        {"document_service:all": orjson.dumps((cached_documents, 1))}
+    )
     monkeypatch.setattr(document_service_module, "r", redis_client)
-    monkeypatch.setattr(document_service_module, "generate_cache_key", lambda suffix: f"document_service:{suffix}")
+    monkeypatch.setattr(
+        document_service_module,
+        "generate_cache_key",
+        lambda suffix: f"document_service:{suffix}",
+    )
 
     repo = SimpleNamespace(get_all=AsyncMock())
     service = DocumentService(FakeUnitOfWork(), repo, SimpleNamespace())

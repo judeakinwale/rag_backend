@@ -7,7 +7,7 @@ from app.core.container import Container
 from app.dependencies import document as document_dependencies
 from app.dependencies import ingest as ingest_dependencies
 from app.producers.document_producer import DocumentProducer
-from app.producers.ingest_producer import IngestProducer
+from rag_packages.shared.kafka.producers.ingest import IngestProducer
 from app.repositories.document_repository import DocumentRepository
 from app.services.document_service import DocumentService
 from app.services.ingest_service import IngestService

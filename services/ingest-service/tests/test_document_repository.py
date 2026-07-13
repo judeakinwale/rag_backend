@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from app.dto.document_dto import CreateDocumentRequest, UpdateDocumentRequest
+from rag_packages.contracts.dto.document import CreateDocumentRequest, UpdateDocumentRequest
 from app.repositories.document_repository import DocumentRepository
 
 

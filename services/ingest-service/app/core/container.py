@@ -1,14 +1,12 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.services.document_service import DocumentService
 from app.repositories.document_repository import DocumentRepository
 from app.producers.document_producer import DocumentProducer
-
 from app.services.ingest_service import IngestService
-from app.producers.ingest_producer import IngestProducer
-
 from app.services.sharepoint_service import SharepointService, SharepointConfig
 
+
+from rag_packages.shared.kafka.producers.ingest import IngestProducer
 from rag_packages.shared.database.uow import UnitOfWork
 from rag_packages.shared.kafka.producer import KafkaProducer
 

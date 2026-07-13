@@ -3,7 +3,7 @@ from app.core.container import container
 from app.core.db import get_db
 
 from rag_packages.shared.kafka.producer import KafkaProducer
-from app.producers.ingest_producer import IngestProducer
+from rag_packages.shared.kafka.producers.ingest import IngestProducer
 from app.services.ingest_service import IngestService
 from app.services.document_service import DocumentService
 from app.services.sharepoint_service import SharepointService

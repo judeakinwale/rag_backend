@@ -3,7 +3,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.events.document_events import DocumentCreatedEvent, DocumentDeletedEvent, DocumentUpdatedEvent
+from rag_packages.contracts.events.document import (
+    DocumentCreatedEvent,
+    DocumentDeletedEvent,
+    DocumentUpdatedEvent,
+)
 from app.producers.document_producer import DocumentProducer
 
 

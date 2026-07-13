@@ -1,6 +1,6 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, Request, status, Query
-from app.dto.document_dto import (
+from rag_packages.contracts.dto.document import (
     DocumentAPIResponse,
     CreateDocumentRequest,
     UpdateDocumentRequest,

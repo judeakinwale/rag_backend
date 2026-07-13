@@ -1,7 +1,7 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, Request, status, Query
 from app.core.config import settings
-from app.dto.ingest_dto import (
+from rag_packages.contracts.dto.ingest import (
     IngestAPIResponse,
     CreateIngestRequest,
     CompleteIngestRequest,

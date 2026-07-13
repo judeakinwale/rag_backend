@@ -1,5 +1,4 @@
-from app.events import document_events
-from rag_packages.contracts.events import shared_events
+from rag_packages.contracts.events import shared_events, document as document_events
 from rag_packages.shared.kafka.consumer import KafkaConsumer
 from app.events.events import EVENTS
 from app.core.config import settings

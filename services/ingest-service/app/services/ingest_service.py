@@ -3,21 +3,21 @@ from datetime import datetime
 from app.repositories.document_repository import DocumentRepository
 from app.services.document_service import DocumentService
 from app.services.sharepoint_service import SharepointService
-from app.producers.ingest_producer import IngestProducer
-from app.events.ingest_events import (
+from rag_packages.shared.kafka.producers.ingest import IngestProducer
+from rag_packages.contracts.events.ingest import (
     IngestStartedEvent,
     ProcessingStartedEvent,
     IngestCompletedEvent,
 )
 from app.core.redis import generate_cache_key, r
 from app.core.config import settings
-from app.dto.document_dto import (
+from rag_packages.contracts.dto.document import (
     DocSource,
     CreateDocumentRequest,
     DocumentResponse,
     UpdateDocumentRequest,
 )
-from app.dto.ingest_dto import (
+from rag_packages.contracts.dto.ingest import (
     CreateIngestRequest,
     CompleteIngestRequest,
     IngestResponse,

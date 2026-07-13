@@ -1,5 +1,5 @@
 from rag_packages.shared.kafka.producer import KafkaProducer
-from app.events.document_events import (
+from rag_packages.contracts.events.document import (
     DocumentCreatedEvent,
     DocumentUpdatedEvent,
     DocumentSoftDeletedEvent,
