@@ -1,7 +1,4 @@
 from pathlib import Path
-from typing import Any
-
-from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # project's base directory
@@ -9,13 +6,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "Ingest Service"
+    APP_NAME: str = "Rag Service"
 
     PG_USER: str
     PG_PASSWORD: str
     PG_DB: str
 
     DATABASE_URL: str
+
+    OPENAI_API_KEY: str
+    OPENAI_WEBHOOK_SECRET: str | None = None
+
+    INGEST_SERVICE_ORIGIN: str
 
     PGADMIN_DEFAULT_EMAIL: str
     PGADMIN_DEFAULT_PASSWORD: str
@@ -30,7 +32,7 @@ class Settings(BaseSettings):
     REDIS_HOST: str | None = "localhost"
     REDIS_PORT: int | None = 6379
     REDIS_PASSWORD: str | None = None
-    REDIS_CACHE_KEY_PREFIX: str | None = "ingest_service"
+    REDIS_CACHE_KEY_PREFIX: str | None = "rag_service"
 
     SHAREPOINT_INGEST_POLL_ENABLED: bool = True
     SHAREPOINT_INGEST_POLL_INTERVAL_SECONDS: int = 300

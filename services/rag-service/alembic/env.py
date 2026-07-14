@@ -17,11 +17,11 @@ from rag_packages.shared.database.base import Base
 from app.core.config import settings
 
 # ! import all models here to ensure they are registered with SQLAlchemy's metadata
-from app.models.document import Document  # noqa: F401
+from app.models.chat import Chat  # noqa: F401
 
 # ? custom config, including the version_table and ownership check as Base is shared across multiple services
-VERSION_TABLE = "alembic_version_ingest_service"
-OWNED_TABLES = {"documents"}
+VERSION_TABLE = "alembic_version_rag_service"
+OWNED_TABLES = {"chats"}
 
 
 def include_object(object, name, type_, reflected, compare_to):

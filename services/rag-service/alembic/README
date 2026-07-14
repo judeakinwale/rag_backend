@@ -2,7 +2,7 @@
 
 Auto-generate:
 `
-alembic revision --autogenerate -m "create documents table"
+alembic revision --autogenerate -m "create chats table"
 `
 
 Apply:

@@ -1,66 +1,42 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.document_service import DocumentService
-from app.repositories.document_repository import DocumentRepository
-from app.producers.document_producer import DocumentProducer
-from app.services.ingest_service import IngestService
-from app.services.sharepoint_service import SharepointService, SharepointConfig
-
+from app.services.chat_service import ChatService
+from app.repositories.chat_repository import ChatRepository
+from app.producers.chat_producer import ChatProducer
 
 from rag_packages.shared.kafka.producers.ingest import IngestProducer
 from rag_packages.shared.database.uow import UnitOfWork
 from rag_packages.shared.kafka.producer import KafkaProducer
+from rag_packages.shared.ai.openai import OpenAIService
 
 
 class Container:
     def __init__(self):
         pass
 
-    def document_repository(self, db: AsyncSession) -> DocumentRepository:
-        return DocumentRepository(db)
+    def chat_repository(self, db: AsyncSession) -> ChatRepository:
+        return ChatRepository(db)
 
-    def document_producer(self, kafka_producer: KafkaProducer) -> DocumentProducer:
-        return DocumentProducer(kafka_producer)
+    def chat_producer(self, kafka_producer: KafkaProducer) -> ChatProducer:
+        return ChatProducer(kafka_producer)
 
-    def document_service(
+    def chat_service(
         self,
         db: AsyncSession,
-        document_producer: DocumentProducer | None = None,
+        chat_producer: ChatProducer | None = None,
         kafka_producer: KafkaProducer | None = None,
-    ) -> DocumentService:
+        openai_service: OpenAIService | None = None,
+    ) -> ChatService:
         uow = UnitOfWork(db)
-        repo = DocumentRepository(db)
-        producer = document_producer or DocumentProducer(kafka_producer)
-        return DocumentService(uow=uow, repo=repo, producer=producer)
+        repo = ChatRepository(db)
+        producer = chat_producer or ChatProducer(kafka_producer)
+        return ChatService(
+            uow=uow, repo=repo, producer=producer, openai_service=openai_service
+        )
 
     # _____________________________________________________________________________
 
     def ingest_producer(self, kafka_producer: KafkaProducer) -> IngestProducer:
         return IngestProducer(kafka_producer)
-
-    def ingest_service(
-        self,
-        db: AsyncSession,
-        ingest_producer: IngestProducer | None = None,
-        kafka_producer: KafkaProducer | None = None,
-        document_service: DocumentService | None = None,
-        sharepoint_service: SharepointService | None = None,
-    ) -> IngestService:
-        uow = UnitOfWork(db)
-        doc_repo = DocumentRepository(db)
-        producer = ingest_producer or IngestProducer(kafka_producer)
-        return IngestService(
-            uow=uow,
-            doc_repo=doc_repo,
-            producer=producer,
-            document_service=document_service,
-            document_source="sharepoint",  # default source, can be changed later
-            sharepoint_service=sharepoint_service,
-        )
-
-    # _____________________________________________________________________________
-
-    def sharepoint_service(self, config: SharepointConfig) -> SharepointService:
-        return SharepointService(config=config)
 
 
 container = Container()
