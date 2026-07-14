@@ -11,7 +11,10 @@ sqlalchemy
 asyncpg
 alembic
 
+# ? specialized packages for vector db management, vector search and embeddings
 qdrant-client[fastembed]
+
+openai[aiohttp]
 
 docling
 docling-core[chunking-openai]

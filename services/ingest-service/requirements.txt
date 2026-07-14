@@ -11,6 +11,8 @@ sqlalchemy
 asyncpg
 alembic
 
+openai[aiohttp]
+
 # ? specialized packages for vector db management, vector search and embeddings
 # ? handled in document-processor service 
 # qdrant-client[fastembed]

@@ -1,6 +1,7 @@
 from rag_packages.shared.kafka.producer import KafkaProducer
 from rag_packages.contracts.events.document import (
     DocumentCreatedEvent,
+    DocumentProcessedEvent,
     DocumentUpdatedEvent,
     DocumentSoftDeletedEvent,
     DocumentDeletedEvent,
@@ -13,7 +14,7 @@ class DocumentProducer:
 
     # document processed and stored in vector db before storing in db
     async def document_processed(
-        self, event: DocumentCreatedEvent, key: str | None = None
+        self, event: DocumentProcessedEvent, key: str | None = None
     ):
         await self.producer.publish(
             "document.processed",
