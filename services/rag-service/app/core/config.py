@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     OPENAI_WEBHOOK_SECRET: str | None = None
 
     INGEST_SERVICE_ORIGIN: str
+    GET_DOCUMENTS_PATH: str = "api/v1/documents"
+
+    QDRANT_HOSTNAME: str
+    QDRANT_PORT: str
+    QDRANT_GRPC_PORT: str
 
     PGADMIN_DEFAULT_EMAIL: str
     PGADMIN_DEFAULT_PASSWORD: str

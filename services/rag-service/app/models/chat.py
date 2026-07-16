@@ -1,7 +1,6 @@
 from __future__ import annotations
-from typing import Any
 from datetime import datetime
-from sqlalchemy import DateTime, Index, Integer, String, Text, func, text
+from sqlalchemy import DateTime, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from rag_packages.shared.database.base import Base
@@ -15,7 +14,9 @@ class Chat(Base):
     email: Mapped[str] = mapped_column(Text, index=True, unique=True)
 
     # messages: Mapped[list[dict[str, Any]]] = mapped_column(
-    messages: Mapped[ChatMessage] = mapped_column(JSONB, nullable=True, default=list)
+    messages: Mapped[list[ChatMessage]] = mapped_column(
+        JSONB, nullable=True, default=list
+    )
 
     session_id: Mapped[str | None] = mapped_column(
         String(255), nullable=True, index=True, unique=True

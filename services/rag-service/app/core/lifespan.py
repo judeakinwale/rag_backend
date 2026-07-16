@@ -9,6 +9,9 @@ from rag_packages.shared.kafka.producer import KafkaProducer
 from rag_packages.shared.kafka.consumer import KafkaConsumer
 from rag_packages.shared.ai.openai import OpenAIService
 
+from rag_packages.shared.processing.document_processor import DocumentProcessor
+from rag_packages.shared.processing.qdrant import QdrantService, QdrantServiceConfig
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -46,6 +49,23 @@ async def lifespan(app: FastAPI):
         app.state.openai_service = None
         raise e
 
+    try:
+        qdrant_service_config = QdrantServiceConfig(
+            collection_name="documents",
+            host=settings.QDRANT_HOSTNAME,
+            port=settings.QDRANT_PORT,
+            grpc_port=settings.QDRANT_GRPC_PORT,
+        )
+        app.state.qdrant_service = QdrantService(config=qdrant_service_config)
+        # app.state.document_processor_service = DocumentProcessor(
+        #     chunk_size=settings.CHUNK_SIZE,
+        #     chunk_overlap=settings.CHUNK_OVERLAP,
+        # )
+    except Exception as e:
+        print(f"Error initializing QdrantService or DocumentProcessor service: {e}")
+        app.state.qdrant_service = None
+        # app.state.document_processor_service = None
+
     yield
 
     kafka_producer = app.state.kafka_producer
@@ -61,6 +81,13 @@ async def lifespan(app: FastAPI):
     openai_service = app.state.openai_service
     if openai_service:
         app.state.openai_service = None
+
+    qdrant_service = app.state.qdrant_service
+    if qdrant_service:
+        await qdrant_service.close()
+        app.state.qdrant_service = None
+
+    app.state.document_processor_service = None
 
     await engine.dispose()
     await r.close()

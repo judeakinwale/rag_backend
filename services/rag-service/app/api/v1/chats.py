@@ -12,12 +12,16 @@ from app.dependencies.chat import (
     get_chat_producer,
     ChatService,
     ChatProducer,
+    get_rag_service,
+    RagService,
 )
 from rag_packages.shared.database.query import QueryParams
 from rag_packages.shared.exception.exception import BadRequestException
 
 
 router = APIRouter(prefix="/chats", tags=["Chats"])
+
+# TODO: replace chat service with rag service for create, update and prompt endpoints
 
 
 @router.get(
@@ -54,8 +58,15 @@ async def create_chat(
     request: Request,
     body: CreateChatRequest,
     service: ChatService = Depends(get_chat_service),
+    rag_service: RagService = Depends(get_rag_service),
+    skip_processing: bool = Query(
+        False, description="If true, skip processing the chat messages before creation"
+    ),
 ) -> ChatAPIResponse:
-    created_chat = await service.create_chat(body)
+    if skip_processing:
+        created_chat = await service.create_chat(body)
+    else:
+        created_chat = await rag_service.create_chat(body)
 
     return ChatAPIResponse(
         success=True,
@@ -100,7 +111,7 @@ async def update_chat_with_prompt(
     request: Request,
     body: AddPromptRequest,
     chat_id: int | None = None,
-    service: ChatService = Depends(get_chat_service),
+    service: RagService = Depends(get_rag_service),
 ) -> ChatAPIResponse:
 
     if chat_id is None and body.session_id is None:
@@ -130,9 +141,18 @@ update_kwargs = {
 async def update_chat(
     chat_id: int,
     body: UpdateChatRequest,
+    rag_service: RagService = Depends(get_rag_service),
     service: ChatService = Depends(get_chat_service),
+    skip_processing: bool = Query(
+        False, description="If true, skip processing the chat messages before creation"
+    ),
 ) -> ChatAPIResponse:
-    updated_chat = await service.update_chat(chat_id, body)
+    if skip_processing:
+        updated_chat = await service.update_chat(chat_id, body)
+    else:
+        updated_chat = await rag_service.update_chat(chat_id, body)
+
+    # updated_chat = await service.update_chat(chat_id, body)
 
     return ChatAPIResponse(
         success=True,
