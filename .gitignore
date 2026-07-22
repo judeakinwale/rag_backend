@@ -23,6 +23,9 @@ services/api-gateway/
 .venv
 .env
 
+# SSL Certificates
+/infrastructure/certs/*.pem
+
 # chat
 zzz_saved_chats/
 plan.md

@@ -23,6 +23,8 @@ services:
   #   ports: ["8001:8000", "5678:5678"]
   #   volumes:
   #     - ./services/auth-service:/app
+  #     # for https certs (using mkcert localhost for local development)
+  #     - ./infrastructure/certs:/certs
   #   env_file:
   #     - .env
   #     - ./services/auth-service/.env
@@ -31,7 +33,16 @@ services:
   #   command: >
   #     python -m uvicorn app.main:app
   #     --host 0.0.0.0 --port 8000 --reload
-  #   depends_on: [kafka, redis, postgres]
+  #     --ssl-keyfile /certs/localhost+2-key.pem
+  #     --ssl-certfile /certs/localhost+2.pem
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     postgres:
+  #       condition: service_healthy
+
   #   networks: [backend]
 
   user-service:
@@ -39,6 +50,7 @@ services:
     ports: ["8002:8000", "5679:5678"]
     volumes:
       - ./services/user-service:/app
+      - ./infrastructure/certs:/certs
     env_file:
       - .env
       - ./services/user-service/.env
@@ -47,31 +59,53 @@ services:
     command: >
       python -m uvicorn app.main:app 
       --host 0.0.0.0 --port 8000 --reload
-    depends_on: [kafka, redis, postgres]
+      --ssl-keyfile /certs/localhost+2-key.pem 
+      --ssl-certfile /certs/localhost+2.pem
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
     networks: [backend]
 
-  # rag-service:
-  #   build: ./services/rag-service
-  #   ports: ["8003:8000", "5680:5678"]
-  #   volumes:
-  #     - ./services/rag-service:/app
-  #   env_file:
-  #     - .env
-  #     - ./services/rag-service/.env
-  #   environment:
-  #     QDRANT_ADDR: qdrant:6334
-  #     WATCHFILES_FORCE_POLLING: "true"
-  #   command: >
-  #     python -m uvicorn app.main:app
-  #     --host 0.0.0.0 --port 8000 --reload
-  #   depends_on: [kafka, redis, postgres, qdrant]
-  #   networks: [backend]
+  rag-service:
+    build: ./services/rag-service
+    ports: ["8003:8000", "5680:5678"]
+    volumes:
+      - ./services/rag-service:/app
+      - ./infrastructure/certs:/certs
+    env_file:
+      - .env
+      - ./services/rag-service/.env
+    environment:
+      QDRANT_ADDR: qdrant:6334
+      WATCHFILES_FORCE_POLLING: "true"
+    command: >
+      python -m uvicorn app.main:app
+      --host 0.0.0.0 --port 8000 --reload
+      --ssl-keyfile /certs/localhost+2-key.pem 
+      --ssl-certfile /certs/localhost+2.pem
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+
+    networks: [backend]
 
   ingest-service:
     build: ./services/ingest-service
     ports: ["8004:8000", "5681:5678"]
     volumes:
       - ./services/ingest-service:/app
+      - ./infrastructure/certs:/certs
     env_file:
       - .env
       - ./services/ingest-service/.env
@@ -81,7 +115,18 @@ services:
     command: >
       python -m uvicorn app.main:app
       --host 0.0.0.0 --port 8000 --reload
-    depends_on: [kafka, redis, postgres, qdrant]
+      --ssl-keyfile /certs/localhost+2-key.pem 
+      --ssl-certfile /certs/localhost+2.pem
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+
     networks: [backend]
 
   document-processor-service:
@@ -89,6 +134,7 @@ services:
     ports: ["8005:8000", "5682:5678"]
     volumes:
       - ./services/document-processor-service:/app
+      - ./infrastructure/certs:/certs
     env_file:
       - .env
       - ./services/document-processor-service/.env
@@ -98,7 +144,18 @@ services:
     command: >
       python -m uvicorn app.main:app
       --host 0.0.0.0 --port 8000 --reload
-    depends_on: [kafka, redis, postgres, qdrant]
+      --ssl-keyfile /certs/localhost+2-key.pem 
+      --ssl-certfile /certs/localhost+2.pem
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+
     networks: [backend]
 
   # notification-service:
@@ -106,12 +163,20 @@ services:
   #   ports: ["8006:8000", "5683:5678"]
   #   volumes:
   #     - ./services/notification-service:/app
+  #     - ./infrastructure/certs:/certs
   #   env_file:
   #     - .env
   #     - ./services/notification-service/.env
   #   environment:
   #     WATCHFILES_FORCE_POLLING: "true"
-  #   depends_on: [kafka, redis, postgres]
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     postgres:
+  #       condition: service_healthy
+
   #   networks: [backend]
 
   # audit-service:
@@ -119,12 +184,20 @@ services:
   #   ports: ["8007:8000", "5684:5678"]
   #   volumes:
   #     - ./services/audit-service:/app
+  #     - ./infrastructure/certs:/certs
   #   env_file:
   #     - .env
   #     - ./services/audit-service/.env
   #   environment:
   #     WATCHFILES_FORCE_POLLING: "true"
-  #   depends_on: [kafka, redis, postgres]
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     postgres:
+  #       condition: service_healthy
+
   #   networks: [backend]
 
   # api-gateway:
@@ -132,6 +205,7 @@ services:
   #   ports: ["8000:8000"]
   #   volumes:
   #     - ./services/api-gateway:/app
+  #     - ./infrastructure/certs:/certs
   #   env_file:
   #     - .env
   #     - ./services/api-gateway/.env
