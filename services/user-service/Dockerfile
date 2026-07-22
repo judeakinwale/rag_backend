@@ -1,12 +1,12 @@
-# FROM python:3.13
-FROM python:3.13-slim
+FROM python:3.13
+# FROM python:3.13-slim
 
 WORKDIR /app
 
 COPY requirements.txt .
 
-RUN apt update
-RUN apt install -y git
+# RUN apt update
+# RUN apt install -y git
 
 RUN pip install --no-cache-dir -r requirements.txt
 

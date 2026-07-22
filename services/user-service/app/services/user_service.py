@@ -1,4 +1,5 @@
 import orjson
+from pydantic import TypeAdapter
 from app.repositories.user_repository import UserRepository
 from app.producers.user_producer import UserProducer
 from app.events.user_events import UserCreatedEvent, UserUpdatedEvent, UserDeletedEvent
@@ -21,6 +22,7 @@ class UserService:
         self.uow = uow
         self.repo = repo
         self.producer = producer
+        self._response_adapter = TypeAdapter(tuple[list[UserResponse], int])
 
     async def get_users(
         self, params: QueryParams | None = None
@@ -43,7 +45,9 @@ class UserService:
         users, count = await self.repo.get_all(params)
         valid_users = [UserResponse.model_validate(user) for user in users]
 
-        await r.set(cache_key, orjson.dumps((valid_users, count)))
+        json_str = self._response_adapter.dump_json((valid_users, count)).decode()
+        await r.set(cache_key, json_str)
+        # await r.set(cache_key, orjson.dumps((valid_users, count)))
         return valid_users, count
 
     # TODO: confirm this works as expected
