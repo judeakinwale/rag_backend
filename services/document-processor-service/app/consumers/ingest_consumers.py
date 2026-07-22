@@ -17,7 +17,11 @@ async def handle_ingest_started(event: ingest_events.IngestStartedEvent):
 async def handle_processing_started(event: ingest_events.ProcessingStartedEvent):
     print(f"[{service_name}] Handling ingest.processing event: {event}")
 
-    await consumer_utils.process_event_document(event)
+    try:
+        await consumer_utils.process_event_document(event)
+    except Exception as e:
+        print(f"[{service_name}] Error processing document [ingest.processing]: {e}")
+        await consumer_utils.trigger_processing_failed(event, error=e)
 
     print(f"[{service_name}] Handling ingest.processing event done: {event}")
 
@@ -25,7 +29,11 @@ async def handle_processing_started(event: ingest_events.ProcessingStartedEvent)
 async def handle_processing_completed(event: ingest_events.ProcessingCompletedEvent):
     print(f"[{service_name}] Handling ingest.processing.completed event: {event}")
 
-    await consumer_utils.event_document_processed(event)
+    try:
+        await consumer_utils.event_document_processed(event)
+    except Exception as e:
+        print(f"[{service_name}] Error processing document [ingest.processing.completed]: {e}")
+        await consumer_utils.trigger_processing_failed(event, error=e)
 
     print(f"[{service_name}] Handling ingest.processing.completed event done: {event}")
 

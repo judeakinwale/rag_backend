@@ -5,6 +5,7 @@ from app.events.vector_document_events import (
     VectorDocumentSoftDeletedEvent,
     VectorDocumentDeletedEvent,
 )
+from rag_packages.shared.utils.format import get_date_iso_str
 
 
 class VectorDocumentProducer:
@@ -15,44 +16,64 @@ class VectorDocumentProducer:
     async def document_processed(
         self, event: VectorDocumentCreatedEvent, key: str | None = None
     ):
+
+        data = event.model_dump()
+        data["initiated_at"] = get_date_iso_str(event.initiated_at)
+
         await self.producer.publish(
             "vector_document.processed",
-            event.model_dump(),
+            data,
             key,
         )
 
     async def document_created(
         self, event: VectorDocumentCreatedEvent, key: str | None = None
     ):
+
+        data = event.model_dump()
+        data["initiated_at"] = get_date_iso_str(event.initiated_at)
+
         await self.producer.publish(
             "vector_document.created",
-            event.model_dump(),
+            data,
             key,
         )
 
     async def document_updated(
         self, event: VectorDocumentUpdatedEvent, key: str | None = None
     ):
+
+        data = event.model_dump()
+        data["initiated_at"] = get_date_iso_str(event.initiated_at)
+
         await self.producer.publish(
             "vector_document.updated",
-            event.model_dump(),
+            data,
             key,
         )
 
     async def document_softdeleted(
         self, event: VectorDocumentSoftDeletedEvent, key: str | None = None
     ):
+
+        data = event.model_dump()
+        data["initiated_at"] = get_date_iso_str(event.initiated_at)
+
         await self.producer.publish(
             "vector_document.softdeleted",
-            event.model_dump(),
+            data,
             key,
         )
 
     async def document_deleted(
         self, event: VectorDocumentDeletedEvent, key: str | None = None
     ):
+
+        data = event.model_dump()
+        data["initiated_at"] = get_date_iso_str(event.initiated_at)
+
         await self.producer.publish(
             "vector_document.deleted",
-            event.model_dump(),
+            data,
             key,
         )
