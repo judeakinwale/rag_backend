@@ -66,6 +66,7 @@ class IngestService:
             file_metadata=sp_doc.get("file_metadata", {}),
             last_modified=sp_doc.get("last_modified"),
             file_type=sp_doc.get("file_type"),
+            file_mime_type=sp_doc.get("file_mime_type"),
             file_size=sp_doc.get("file_size"),
             **extra,
         )
@@ -97,10 +98,10 @@ class IngestService:
         cache_key = generate_cache_key(
             f"libraries:{'.'.join(library_ids) if library_ids else 'all'}"
         )
-        cached = await r.get(cache_key)
+        # cached = await r.get(cache_key)
 
-        if cached is not None:
-            return IngestResponse.model_validate_json(cached)
+        # if cached is not None:
+        #     return IngestResponse.model_validate_json(cached)
 
         ingest_initiated_at = datetime.now()
 

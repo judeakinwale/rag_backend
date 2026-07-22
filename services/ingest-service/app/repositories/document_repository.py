@@ -83,3 +83,16 @@ class DocumentRepository:
         await self.db.delete(document)
 
         return document
+
+    async def delete_all(self) -> list[Document]:
+        stmt = select(Document)
+        result = await self.db.execute(stmt)
+        documents = result.scalars().all()
+
+        if not documents:
+            return []
+
+        for document in documents:
+            await self.db.delete(document)
+
+        return documents

@@ -1,6 +1,7 @@
 from datetime import datetime
 import orjson
 from pydantic import TypeAdapter
+from sqlalchemy import inspect
 from app.repositories.document_repository import DocumentRepository
 from app.producers.document_producer import DocumentProducer
 from rag_packages.contracts.events.document import (
@@ -150,11 +151,27 @@ class DocumentService:
             if document is None:
                 raise NotFoundException(f"Document with id: {document_id} not found.")
 
+            # await self.uow.session.refresh(document)
+            response = DocumentResponse.model_validate(document)
+
         event = DocumentUpdatedEvent.model_validate(document)
         event.updated = list(payload.model_dump(exclude_unset=True).keys())
         await self.producer.document_updated(event)
 
-        return DocumentResponse.model_validate(document)
+        print(
+            {
+                "updated document": document.__dict__,
+                "file_url": document.file_url,
+                "event": event.model_dump(),
+                "updated fields": event.updated,
+            }
+        )
+
+        return response
+        # document_dict = {c.key: getattr(document, c.key) for c in inspect(document).mapper.column_attrs}
+        # print({"document_dict": document_dict})
+
+        # return DocumentResponse(**document_dict)
 
     async def delete_document(self, document_id: int) -> DocumentResponse | None:
         async with self.uow:
@@ -162,7 +179,21 @@ class DocumentService:
             if document is None:
                 raise NotFoundException(f"Document with id: {document_id} not found.")
 
-        event = DocumentDeletedEvent.model_validate(document)
+            event = DocumentDeletedEvent.model_validate(document)
+            response = DocumentResponse.model_validate(document)
+
         await self.producer.document_deleted(event)
 
-        return DocumentResponse.model_validate(document)
+        return response
+
+    async def delete_all_documents(self) -> list[DocumentResponse]:
+        async with self.uow:
+            documents: list[Document] = await self.repo.delete_all()
+
+            events = [DocumentDeletedEvent.model_validate(doc) for doc in documents]
+            responses = [DocumentResponse.model_validate(doc) for doc in documents]
+
+        for event in events:
+            await self.producer.document_deleted(event)
+
+        return responses

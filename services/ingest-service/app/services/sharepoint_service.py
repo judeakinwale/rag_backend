@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import hashlib
 from datetime import datetime, timezone
 from urllib.parse import quote, urlparse
 
@@ -36,6 +38,7 @@ class SharepointService:
     async def _get_json(
         self, client: httpx.AsyncClient, url: str, params: dict | None = None
     ) -> dict:
+        print({"url in _get_json": url})
         response = await client.get(url, headers=await self._headers(), params=params)
 
         if response.status_code >= 400:
@@ -98,6 +101,7 @@ class SharepointService:
             "etag": item.get("eTag"),
             "ctag": item.get("cTag"),
             "mime_type": item.get("file", {}).get("mimeType"),
+            "type": item.get("type"),
             "created_at": item.get("createdDateTime"),
             "last_modified_by": item.get("lastModifiedBy"),
             "created_by": item.get("createdBy"),
@@ -105,7 +109,8 @@ class SharepointService:
         }
         file_size = item.get("size")
         default_file_type = name.rsplit(".", 1)[-1].lower() if "." in name else ""
-        file_type = file_metadata.get("mime_type") or default_file_type
+        file_type = default_file_type
+        file_mime_type = file_metadata.get("mime_type") or default_file_type
 
         return {
             "name": name,
@@ -118,16 +123,28 @@ class SharepointService:
             "last_modified": last_modified,
             "file_size": file_size or 0,
             "file_type": file_type,
+            "file_mime_type": file_mime_type,
         }
 
-    async def get_file(self, file_url: str) -> dict:
+    # async def get_file(self, file_url: str) -> dict:
+    async def get_file(self, drive_id: str, item_id: str) -> dict:
         async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.get(file_url, headers=await self._headers())
+            # response = await client.get(file_url, headers=await self._headers())
+
+            url = f"{self.GRAPH_BASE_URL}/drives/{drive_id}/items/{item_id}/content"
+
+            response = await client.get(
+                url,
+                headers=await self._headers(),
+                follow_redirects=True,
+            )
+
             response.raise_for_status()
+
             file_content = response.content
             file_size = len(file_content)
-            file_sha256 = httpx.utils.sha256(file_content).hexdigest()
-            file_b64 = httpx.utils.base64.b64encode(file_content).decode("utf-8")
+            file_sha256 = hashlib.sha256(file_content).hexdigest()
+            file_b64 = base64.b64encode(file_content).decode("utf-8")
 
         return {
             "binary": file_content,

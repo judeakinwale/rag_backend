@@ -33,6 +33,7 @@ class Document(Base):
     last_modified: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
     file_type: Mapped[str] = mapped_column(String(255))
+    file_mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
     file_size: Mapped[int] = mapped_column(Integer)  # in bytes
 
     # track when the ingest batch processing this document was initiated

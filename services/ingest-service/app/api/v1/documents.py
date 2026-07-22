@@ -82,7 +82,10 @@ async def get_document(
     document = await service.get_document_by_id(document_id)
 
     if include_file:
-        file_info = await sharepoint_service.get_file(document.file_url)
+        file_info = await sharepoint_service.get_file(
+            drive_id=document.file_metadata["drive_id"],
+            item_id=document.file_metadata["sharepoint_id"],
+        )
         print({"file_info": file_info})
         document.file_b64 = file_info["b64"]
         document.file_size = file_info["size"]
@@ -137,3 +140,22 @@ async def delete_document(
         data=deleted_document,
         message=f"Document with ID {document_id} has been deleted.",
     )
+
+# @router.delete(
+#     "/delete/all",
+#     status_code=status.HTTP_200_OK,
+#     response_model=DocumentListAPIResponse,
+#     response_model_exclude_none=True,
+#     response_model_exclude_unset=True,
+#     summary="Delete all documents",
+# )
+# async def delete_all_documents(
+#     service: DocumentService = Depends(get_document_service),
+# ) -> DocumentListAPIResponse:
+#     deleted_documents = await service.delete_all_documents()
+
+#     return DocumentListAPIResponse(
+#         success=True,
+#         data=deleted_documents,
+#         message="All documents have been deleted.",
+#     )
