@@ -1,4 +1,5 @@
 import orjson
+from pydantic import TypeAdapter
 from app.repositories.chat_repository import ChatRepository
 from app.producers.chat_producer import ChatProducer
 from app.events.chat_events import (
@@ -30,6 +31,7 @@ class ChatService:
         self.repo = repo
         self.producer = producer
         # self.outbox_repo = outbox_repo
+        self._response_adapter = TypeAdapter(tuple[list[ChatResponse], int])
 
     async def get_chats(
         self, params: QueryParams | None = None
@@ -53,7 +55,9 @@ class ChatService:
         chats, count = await self.repo.get_all(params)
         valid_chats = [ChatResponse.model_validate(chat) for chat in chats]
 
-        await r.set(cache_key, orjson.dumps((valid_chats, count)))
+        json_str = self._response_adapter.dump_json((valid_chats, count)).decode()
+        await r.set(cache_key, json_str)
+        # await r.set(cache_key, orjson.dumps((valid_chats, count)))
         return valid_chats, count
 
     async def create_multiple_chats(

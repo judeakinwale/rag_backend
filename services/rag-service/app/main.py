@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.lifespan import lifespan
@@ -23,6 +24,20 @@ app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 
 register_exception_handlers(app)
 
+origins = [
+    "https://klafgo6.sharepoint.com",
+    "https://localhost:3000",
+    "http://localhost:3000",
+    "https://localhost:5173",
+    "http://localhost:5173",
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(
     LoggingMiddleware,

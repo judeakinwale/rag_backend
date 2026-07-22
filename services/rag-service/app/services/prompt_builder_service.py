@@ -1,10 +1,24 @@
 from datetime import UTC, datetime
+import mimetypes
 from typing import Any
 from rag_packages.contracts.dto.chat import AddPromptRequest, ChatMessage
 from rag_packages.shared.ai.openai import ActorRole
 
 
 class PromptBuilder:
+    def _get_mime_type(self, extension: str = "png", default: str = "image/png"):
+        if "/" in extension:
+            return extension  # already a mime type
+
+        if not extension.startswith("."):
+            extension = "." + extension
+
+        mime_type = mimetypes.types_map.get(extension.lower(), default)
+
+        print(mime_type)  # eg. image/jpeg, image/png, application/pdf, etc.
+
+        return mime_type
+
     def copy_messages(self, messages: list[ChatMessage] | None) -> list[ChatMessage]:
         return (
             [message.model_copy(deep=True) for message in messages] if messages else []
@@ -30,7 +44,7 @@ class PromptBuilder:
             image_url = payload.file_url
 
             if payload.b64_file is not None:
-                mime_type = payload.file_type or "image/png"
+                mime_type = self._get_mime_type(payload.file_type)
                 image_url = f"data:{mime_type};base64,{payload.b64_file}"
 
             if image_url is not None:

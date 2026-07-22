@@ -5,6 +5,7 @@ from app.events.chat_events import (
     ChatSoftDeletedEvent,
     ChatDeletedEvent,
 )
+from rag_packages.shared.utils.format import get_date_iso_str
 
 
 class ChatProducer:
@@ -12,31 +13,47 @@ class ChatProducer:
         self.producer = producer
 
     async def chat_created(self, event: ChatCreatedEvent, key: str | None = None):
+
+        data = event.model_dump()
+        data["created_at"] = get_date_iso_str(event.created_at)
+
         await self.producer.publish(
             "chat.created",
-            event.model_dump(),
+            data,
             key,
         )
 
     async def chat_updated(self, event: ChatUpdatedEvent, key: str | None = None):
+
+        data = event.model_dump()
+        data["created_at"] = get_date_iso_str(event.created_at)
+
         await self.producer.publish(
             "chat.updated",
-            event.model_dump(),
+            data,
             key,
         )
 
     async def chat_softdeleted(
         self, event: ChatSoftDeletedEvent, key: str | None = None
     ):
+
+        data = event.model_dump()
+        data["created_at"] = get_date_iso_str(event.created_at)
+
         await self.producer.publish(
             "chat.softdeleted",
-            event.model_dump(),
+            data,
             key,
         )
 
     async def chat_deleted(self, event: ChatDeletedEvent, key: str | None = None):
+
+        data = event.model_dump()
+        data["created_at"] = get_date_iso_str(event.created_at)
+
         await self.producer.publish(
             "chat.deleted",
-            event.model_dump(),
+            data,
             key,
         )

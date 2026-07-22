@@ -9,7 +9,7 @@ from rag_packages.shared.kafka.producer import KafkaProducer
 from rag_packages.shared.kafka.consumer import KafkaConsumer
 from rag_packages.shared.ai.openai import OpenAIService
 
-from rag_packages.shared.processing.document_processor import DocumentProcessor
+# from rag_packages.shared.processing.document_processor import DocumentProcessor
 from rag_packages.shared.processing.qdrant import QdrantService, QdrantServiceConfig
 
 
@@ -57,6 +57,8 @@ async def lifespan(app: FastAPI):
             grpc_port=settings.QDRANT_GRPC_PORT,
         )
         app.state.qdrant_service = QdrantService(config=qdrant_service_config)
+        app.state.qdrant_service.create_collection()
+
         # app.state.document_processor_service = DocumentProcessor(
         #     chunk_size=settings.CHUNK_SIZE,
         #     chunk_overlap=settings.CHUNK_OVERLAP,

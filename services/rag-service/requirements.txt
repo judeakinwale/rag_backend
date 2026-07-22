@@ -15,7 +15,7 @@ openai[aiohttp]
 
 # ? specialized packages for vector db management, vector search and embeddings
 # ? handled in document-processor service 
-# qdrant-client[fastembed]
+qdrant-client[fastembed] # used in this service
 
 # docling
 # # rapidocr

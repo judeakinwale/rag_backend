@@ -6,6 +6,7 @@ from rag_packages.contracts.dto.chat import (
     CreateChatRequest,
     UpdateChatRequest,
     ChatListAPIResponse,
+    SimpleChat,
 )
 from app.dependencies.chat import (
     get_chat_service,
@@ -14,6 +15,8 @@ from app.dependencies.chat import (
     ChatProducer,
     get_rag_service,
     RagService,
+    get_openai_service,
+    OpenAIService,
 )
 from rag_packages.shared.database.query import QueryParams
 from rag_packages.shared.exception.exception import BadRequestException
@@ -22,6 +25,27 @@ from rag_packages.shared.exception.exception import BadRequestException
 router = APIRouter(prefix="/chats", tags=["Chats"])
 
 # TODO: replace chat service with rag service for create, update and prompt endpoints
+
+
+@router.post(
+    "/test/prompt",
+    status_code=status.HTTP_200_OK,
+    response_model=SimpleChat,
+    response_model_exclude_none=True,
+    response_model_exclude_unset=True,
+    summary="send a prompt to the llm and get a response",
+)
+async def test_chat(
+    body: SimpleChat,
+    service: OpenAIService = Depends(get_openai_service),
+) -> SimpleChat:
+    response = await service.create_response(body.prompt)
+    response_text = response.output_text
+
+    return SimpleChat(
+        prompt=body.prompt,
+        response=response_text,
+    )
 
 
 @router.get(
