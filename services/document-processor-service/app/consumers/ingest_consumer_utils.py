@@ -21,8 +21,13 @@ logger = logging.getLogger(__name__)
 
 
 class IngestConsumerUtils:
-    def __init__(self):
+    def __init__(self, root_cert_path: str | None = None):
         self.ingest_origin = settings.INGEST_SERVICE_ORIGIN
+        self.root_cert_path = (
+            root_cert_path
+            if root_cert_path is not None
+            else "/home/jude/.local/share/mkcert/rootCA.pem"
+        )
 
     def _chunk_to_vector_document(
         self, chunk: ProcessedChunk, document: DocumentResponse
@@ -32,6 +37,7 @@ class IngestConsumerUtils:
             file_url=document.file_url,
             library_name=document.library_name,
             file_type=document.file_type,
+            file_mime_type=document.file_mime_type,
             file_size=document.file_size,
             last_modified=document.last_modified,
         )
@@ -55,7 +61,7 @@ class IngestConsumerUtils:
 
         # fetch document with details and base64 file from ingest-service
         document_url = f"{self.ingest_origin}/api/v1/documents/{event.document_id}?include_file=true"
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(verify=self.root_cert_path, timeout=30) as client:
             response = await client.get(document_url)
             response.raise_for_status()
             document_response = DocumentAPIResponse.model_validate(response.json())
@@ -119,7 +125,7 @@ class IngestConsumerUtils:
             ingest_initiated_at=event.ingest_initiated_at,
         )
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=self.root_cert_path, timeout=30) as client:
             response = await client.post(
                 endpoint,
                 json=payload.model_dump(mode="json"),
