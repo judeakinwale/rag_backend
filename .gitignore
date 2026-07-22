@@ -26,6 +26,9 @@ services/api-gateway/
 # SSL Certificates
 /infrastructure/certs/*.pem
 
+# infra data
+qdrant_data/
+
 # chat
 zzz_saved_chats/
 plan.md

@@ -44,7 +44,7 @@ class PromptBuilder:
             image_url = payload.file_url
 
             if payload.b64_file is not None:
-                mime_type = self._get_mime_type(payload.file_type)
+                mime_type = self._get_mime_type(payload.file_mime_type or payload.file_type)
                 image_url = f"data:{mime_type};base64,{payload.b64_file}"
 
             if image_url is not None:

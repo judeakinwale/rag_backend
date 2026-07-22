@@ -265,7 +265,7 @@ class RagService:
         instructions: str | None = None,
         file_url: str | None = None,
         b64_file: str | None = None,
-        file_type: str | None = None,
+        file_mime_type: str | None = None,
         stream: bool = False,
     ) -> ChatMessage:
         if self.openai_service is None:
@@ -280,7 +280,7 @@ class RagService:
                 instructions=instructions,
                 file_url=file_url,
                 b64_file=b64_file,
-                b64_file_mime_type=file_type,
+                b64_file_mime_type=file_mime_type,
                 stream=stream,
             )
         else:
@@ -306,7 +306,7 @@ class RagService:
         prompt: str | None = None,
         file_url: str | None = None,
         b64_file: str | None = None,
-        file_type: str | None = None,
+        file_mime_type: str | None = None,
         # use messages as previous conversation context
         # the new prompt is already added to the messages list, so exclude it (the last message)
         # ? this seems dumb, the openai_service already handles the previous conversation
@@ -317,7 +317,7 @@ class RagService:
             prompt=prompt,
             file_url=file_url,
             b64_file=b64_file,
-            file_type=file_type,
+            file_mime_type=file_mime_type,
         )
         return [*messages, assistant_message]
 
