@@ -5,7 +5,9 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.lifespan import lifespan
 from app.core.config import settings
+
 # from app.api.v1.vector_documents import router as vector_documents_router_v1
+from app.api.v1.ingest_overrides import router as ingest_overrides_router_v1
 
 from rag_packages.shared.middleware.request_id import RequestIdMiddleware
 from rag_packages.shared.logging.middleware import LoggingMiddleware
@@ -31,6 +33,7 @@ app.add_middleware(
 
 # TODO: implement vector_document repo, service and router
 # app.include_router(vector_documents_router_v1, prefix="/api/v1")
+app.include_router(ingest_overrides_router_v1, prefix="/api/v1")
 
 
 @app.get("/health")
