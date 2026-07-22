@@ -6,6 +6,7 @@ from rag_packages.contracts.events.document import (
     DocumentSoftDeletedEvent,
     DocumentDeletedEvent,
 )
+from rag_packages.shared.utils.format import get_date_iso_str
 
 
 class DocumentProducer:
@@ -16,44 +17,59 @@ class DocumentProducer:
     async def document_processed(
         self, event: DocumentProcessedEvent, key: str | None = None
     ):
+        data = event.model_dump()
+        data["ingest_initiated_at"] = get_date_iso_str(event.ingest_initiated_at)
+
         await self.producer.publish(
             "document.processed",
-            event.model_dump(),
+            data,
             key,
         )
 
     async def document_created(
         self, event: DocumentCreatedEvent, key: str | None = None
     ):
+        data = event.model_dump()
+        data["ingest_initiated_at"] = get_date_iso_str(event.ingest_initiated_at)
+
         await self.producer.publish(
             "document.created",
-            event.model_dump(),
+            data,
             key,
         )
 
     async def document_updated(
         self, event: DocumentUpdatedEvent, key: str | None = None
     ):
+        data = event.model_dump()
+        data["ingest_initiated_at"] = get_date_iso_str(event.ingest_initiated_at)
+
         await self.producer.publish(
             "document.updated",
-            event.model_dump(),
+            data,
             key,
         )
 
     async def document_softdeleted(
         self, event: DocumentSoftDeletedEvent, key: str | None = None
     ):
+        data = event.model_dump()
+        data["ingest_initiated_at"] = get_date_iso_str(event.ingest_initiated_at)
+
         await self.producer.publish(
             "document.softdeleted",
-            event.model_dump(),
+            data,
             key,
         )
 
     async def document_deleted(
         self, event: DocumentDeletedEvent, key: str | None = None
     ):
+        data = event.model_dump()
+        data["ingest_initiated_at"] = get_date_iso_str(event.ingest_initiated_at)
+
         await self.producer.publish(
             "document.deleted",
-            event.model_dump(),
+            data,
             key,
         )

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, UTC
 
 from app.repositories.document_repository import DocumentRepository
 from app.services.document_service import DocumentService
@@ -24,6 +24,8 @@ from rag_packages.contracts.dto.ingest import (
 )
 from rag_packages.shared.database.uow import UnitOfWork
 from rag_packages.shared.database.query import QueryParams
+
+from rag_packages.contracts.events.document import DocumentUpdatedEvent
 
 
 class IngestService:
@@ -64,6 +66,7 @@ class IngestService:
             file_metadata=sp_doc.get("file_metadata", {}),
             last_modified=sp_doc.get("last_modified"),
             file_type=sp_doc.get("file_type"),
+            file_size=sp_doc.get("file_size"),
             **extra,
         )
 
@@ -74,6 +77,20 @@ class IngestService:
             raise ValueError(
                 f"Document source is set to {self.document_source}. Cannot start SharePoint ingest."
             )
+
+        # # TODO: remove this and the following error after testing kafka works
+        # await self.document_service.producer.document_updated(
+        #     DocumentUpdatedEvent(
+        #         id=0,
+        #         name="SharePoint Ingest Started",
+        #         file_url="",
+        #         source=self.document_source,
+        #         ingest_initiated_at=datetime.now(UTC),
+        #         updated=["ingest_status"],
+        #     )
+        # )
+
+        # raise NotImplementedError("This method is not yet implemented.")
 
         library_ids = payload.library_ids or self.default_library_ids
 
@@ -108,6 +125,17 @@ class IngestService:
         sp_docs: list[dict] = await self.sharepoint_service.get_site_documents(
             library_ids=library_ids, modified_since=last_check_at
         )
+
+        # early return if no documents were found to ingest
+        if not sp_docs:
+            response = IngestResponse(library_ids=library_ids, documents=[])
+            return response
+
+        # print({"sp_docs": sp_docs, "sp_docs_len": len(sp_docs), "last_check_at": last_check_at})
+
+        # invalid_docs = [doc for doc in sp_docs if not doc.get("file_size")]
+
+        # print({"invalid_docs": invalid_docs, "invalid_docs_len": len(invalid_docs)})
 
         # extra_payload = {
         #     "source": self.document_source,
@@ -161,6 +189,10 @@ class IngestService:
             )
             doc_payloads.append(doc_payload)
 
+        # print({"doc_payloads": doc_payloads, "doc_payloads_len": len(doc_payloads), "last_check_at": last_check_at})
+
+        # raise ValueError(f"Forcing logging for sp docs: {len(doc_payloads)}")
+
         created_docs = await self.document_service.create_multiple_documents(
             doc_payloads
         )
@@ -168,7 +200,12 @@ class IngestService:
         to_process_docs = updated_docs + created_docs
         to_process_doc_ids = set(updated_doc_ids)
 
-        event = IngestStartedEvent(library_ids=library_ids, documents=to_process_docs)
+        event = IngestStartedEvent(
+            # library_ids=library_ids,
+            # documents=to_process_docs,
+            document_ids=list(to_process_doc_ids),
+            source=self.document_source,
+        )
         await self.producer.ingest_started(event)
 
         docs_len = len(to_process_docs)

@@ -1,5 +1,6 @@
 from datetime import datetime
 import orjson
+from pydantic import TypeAdapter
 from app.repositories.document_repository import DocumentRepository
 from app.producers.document_producer import DocumentProducer
 from rag_packages.contracts.events.document import (
@@ -19,6 +20,8 @@ from rag_packages.shared.database.uow import UnitOfWork
 from rag_packages.shared.database.query import QueryParams
 from rag_packages.shared.exception.exception import NotFoundException
 
+# TODO: complete type adapter validation impl, update other services to use a similar structure
+
 
 class DocumentService:
     def __init__(
@@ -31,6 +34,8 @@ class DocumentService:
         self.uow = uow
         self.repo = repo
         self.producer = producer
+        self._list_adapter = TypeAdapter(list[DocumentResponse])
+        self._response_adapter = TypeAdapter(tuple[list[DocumentResponse], int])
 
     async def get_documents(
         self, params: QueryParams | None = None
@@ -54,11 +59,14 @@ class DocumentService:
                 await r.delete(cache_key)  # invalidate corrupted cache
 
         documents, count = await self.repo.get_all(params)
-        valid_documents = [
-            DocumentResponse.model_validate(document) for document in documents
-        ]
+        # valid_documents = [
+        #     DocumentResponse.model_validate(document) for document in documents
+        # ]
+        valid_documents = self._list_adapter.validate_python(documents)
 
-        await r.set(cache_key, orjson.dumps((valid_documents, count)))
+        json_str = self._response_adapter.dump_json((valid_documents, count)).decode()
+        await r.set(cache_key, json_str)
+        # await r.set(cache_key, orjson.dumps([valid_documents, count]).decode("utf-8"))
         return valid_documents, count
 
     async def create_multiple_documents(
@@ -80,7 +88,9 @@ class DocumentService:
         for event in events:
             await self.producer.document_created(event)
 
-        return [DocumentResponse.model_validate(document) for document in documents]
+        valid_documents = self._list_adapter.validate_python(documents)
+        return valid_documents
+        # return [DocumentResponse.model_validate(document) for document in documents]
 
     async def create_document(self, payload: CreateDocumentRequest) -> DocumentResponse:
         payload.ingest_initiated_at = payload.ingest_initiated_at or datetime.now()

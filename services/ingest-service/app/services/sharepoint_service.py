@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import quote, urlparse
 
 import httpx
@@ -37,6 +37,10 @@ class SharepointService:
         self, client: httpx.AsyncClient, url: str, params: dict | None = None
     ) -> dict:
         response = await client.get(url, headers=await self._headers(), params=params)
+
+        if response.status_code >= 400:
+            print({"response_json": response.json()})
+
         response.raise_for_status()
         return response.json()
 
@@ -99,6 +103,9 @@ class SharepointService:
             "created_by": item.get("createdBy"),
             "size": item.get("size"),
         }
+        file_size = item.get("size")
+        default_file_type = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+        file_type = file_metadata.get("mime_type") or default_file_type
 
         return {
             "name": name,
@@ -109,9 +116,10 @@ class SharepointService:
             "parent_folder_path": relative_parent_path or "/",
             "file_metadata": file_metadata,
             "last_modified": last_modified,
-            "file_type": name.rsplit(".", 1)[-1].lower() if "." in name else "",
+            "file_size": file_size or 0,
+            "file_type": file_type,
         }
-        
+
     async def get_file(self, file_url: str) -> dict:
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.get(file_url, headers=await self._headers())
@@ -155,7 +163,9 @@ class SharepointService:
             documents_by_library = await asyncio.gather(
                 *[
                     # self._get_library_documents(client, library, site, modified_since)
-                    self._get_library_documents_from_list_items(client, library, site, modified_since)
+                    self._get_library_documents_from_list_items(
+                        client, library, site, modified_since
+                    )
                     for library in libraries
                 ]
             )
@@ -284,9 +294,23 @@ class SharepointService:
         url = f"{self.GRAPH_BASE_URL}/sites/{site_id}/lists/{library_list_id}/items"
         params = {"$select": select, "$top": 999999, "$expand": "driveItem"}
         if modified_since is not None:
-            params["$filter"] = f"lastModifiedDateTime ge {modified_since.isoformat()}"
+            # instead of using modified_since.isoformat()
+            timestamp = modified_since.astimezone(timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+            # print({"timestamp": timestamp})
+            params["$expand"] = f"{params['$expand']},fields"
+            # params["$filter"] = "fields/ID eq '1'"
+            params["$filter"] = f"fields/Modified ge '{timestamp}'"
+            # # params["$filter"] = "id eq '1'"
+            # # params["$filter"] = f"createdDateTime ge {timestamp}"
+            # # params["$filter"] = f"lastModifiedDateTime ge {timestamp}"
 
         list_items = await self._get_paged(client, url, params=params)
+        # print({"list_items": list_items, "list_items_len": len(list_items)})
+        if not list_items:
+            return []
+
         for item in list_items:
             drive_item = item.get("driveItem")
             if not drive_item:
@@ -297,20 +321,24 @@ class SharepointService:
                 continue
 
             last_modified = document.get("last_modified")
+            # print({"last_modified": last_modified, "modified_since": modified_since})
             if modified_since and last_modified:
                 modified_at = datetime.fromisoformat(
-                    last_modified.replace("Z", "+00:00")
+                    last_modified
+                    # last_modified.replace("Z", "+00:00")
                 )
                 since = (
                     modified_since.replace(tzinfo=modified_at.tzinfo)
                     if modified_since.tzinfo is None
                     else modified_since
                 )
+                # print({"modified_at": modified_at, "since": since})
                 if modified_at <= since:
                     continue
 
             documents.append(document)
 
+        # print({"valid_documents": documents})
         return documents
 
     async def close(self):
