@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     INGEST_SERVICE_ORIGIN: str
     GET_DOCUMENTS_PATH: str = "api/v1/documents"
+    ROOT_CERT_PATH: str = "/home/jude/.local/share/mkcert/rootCA.pem"
 
     QDRANT_HOSTNAME: str
     QDRANT_PORT: str

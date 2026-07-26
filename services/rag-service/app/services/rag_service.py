@@ -20,7 +20,10 @@ from rag_packages.contracts.dto.chat import (
     AddPromptRequest,
     CreateChatRequest,
     ChatMessage,
+    OpenAIChatMessage,
+    ChatMessageReferences,
     UpdateChatRequest,
+    ChatResponse,
 )
 from rag_packages.contracts.dto.vector_document import VectorDocumentPayload
 from rag_packages.shared.exception.exception import BadRequestException
@@ -58,6 +61,7 @@ class RagService:
         chat_service: ChatService,
         qdrant_service: QdrantService,
         openai_service: OpenAIService | None = None,
+        root_cert_path: str | None = None,
     ):
         # self.chat_repository = chat_repository
         self.chat_service = chat_service
@@ -65,6 +69,9 @@ class RagService:
         self.openai_service = openai_service
         self.prompt_builder = PromptBuilder()
 
+        self.root_cert_path = (
+            root_cert_path if root_cert_path is not None else settings.ROOT_CERT_PATH
+        )
         self._ingest_service_origin = settings.INGEST_SERVICE_ORIGIN
         self._get_documents_path = settings.GET_DOCUMENTS_PATH
 
@@ -79,10 +86,17 @@ class RagService:
             logger.warning("OpenAI service is not initialized.")
             return query
 
+        valid_prev_conversation = [
+            OpenAIChatMessage.model_validate(
+                message.model_dump(exclude_unset=True, exclude_none=True)
+            )
+            for message in prev_conversation
+        ]
+
         response: Response = await self.openai_service.create_response(
             prompt=query,
             instructions=self._rewrite_instructions,
-            prev_conversation=prev_conversation,
+            prev_conversation=valid_prev_conversation,
         )
         rewritten_query = response.output_text
         return rewritten_query
@@ -105,7 +119,10 @@ class RagService:
         return last_prompt
 
     def _update_last_prompt(
-        self, prompt: str, messages: list[ChatMessage]
+        self,
+        prompt: str,
+        messages: list[ChatMessage],
+        references: ChatMessageReferences | None = None,
     ) -> list[ChatMessage]:
         if not messages or not prompt:
             return messages
@@ -120,12 +137,16 @@ class RagService:
                 part["text"] = prompt
                 break
 
+        if references:
+            last_message.references = references
+
         return messages
 
     async def get_query_matching_documents(
         self, query: str, limit: int = 5
     ) -> list[DocumentResponse]:
-        async with httpx.AsyncClient(timeout=30) as client:
+        print({"root_cert_path": self.root_cert_path})
+        async with httpx.AsyncClient(verify=self.root_cert_path, timeout=30) as client:
             response = await client.get(
                 f"{self._ingest_service_origin}/{self._get_documents_path}",
                 params={"query": query, "limit": limit},
@@ -166,21 +187,27 @@ class RagService:
     # build markdown context strings from the retrieved documents and vector documents
     async def _build_document_context(
         self, query: str | list[str], limit: int = 5
-    ) -> str:
+    ) -> tuple[str, ChatMessageReferences]:
 
         points = await self._get_matching_vector_documents(query=query, limit=limit)
         payloads = [self._get_point_payload(point) for point in points]
-        # documents = await self._get_matching_documents(query=query, limit=limit)
+        documents = await self._get_matching_documents(query=query, limit=limit)
 
         # TODO: add the payload details and the document metadata to the context
         # Look into moving this into prompt_builder
         context = (
             f"{'\n'.join([payload.text for payload in payloads])} \n"
-            f"{'\n'.join([payload.details for payload in payloads])} \n"
-            f"{'\n'.join([payload.file_metadata for payload in payloads])} \n"
+            f"{'\n'.join([str(payload.details.model_dump()) for payload in payloads])} \n"
+            f"{'\n'.join([str(payload.file_metadata.model_dump()) for payload in payloads])} \n"
             # f"{'\n'.join([document.file_metadata for document in documents])} \n"
         )
-        return context
+
+        references = ChatMessageReferences(
+            vector_documents=payloads,
+            documents=documents or [],
+        )
+
+        return context, references
 
     def _get_response_text(self, response: OpenAIResponse) -> str:
         response_text = getattr(response, "output_text", None)
@@ -267,16 +294,25 @@ class RagService:
         b64_file: str | None = None,
         file_mime_type: str | None = None,
         stream: bool = False,
+        references: ChatMessageReferences | None = None,
     ) -> ChatMessage:
         if self.openai_service is None:
             raise BadRequestException(
                 "OpenAI service is not configured for chat responses."
             )
 
+        valid_conversation = [
+            OpenAIChatMessage.model_validate(message).model_dump(
+                exclude_unset=True, exclude_none=True
+            )
+            for message in conversation
+        ]
+        print({"valid_conversation": valid_conversation})
+
         if prompt is not None:
             response = await self.openai_service.create_response(
                 prompt=prompt,
-                prev_conversation=[message.model_dump() for message in conversation],
+                prev_conversation=valid_conversation,
                 instructions=instructions,
                 file_url=file_url,
                 b64_file=b64_file,
@@ -285,7 +321,7 @@ class RagService:
             )
         else:
             response = await self.openai_service.create_response(
-                conversation=[message.model_dump() for message in conversation],
+                conversation=valid_conversation,
                 instructions=instructions,
                 stream=stream,
             )
@@ -296,7 +332,7 @@ class RagService:
             response_text = self._get_response_text(response)
 
         return self.prompt_builder.create_chat_message(
-            role=ActorRole.ASSISTANT, content=response_text
+            role=ActorRole.ASSISTANT, content=response_text, references=references
         )
 
     async def _append_assistant_reply(
@@ -311,6 +347,7 @@ class RagService:
         # the new prompt is already added to the messages list, so exclude it (the last message)
         # ? this seems dumb, the openai_service already handles the previous conversation
         use_prev_conversation: bool = False,
+        references: ChatMessageReferences | None = None,
     ) -> list[ChatMessage]:
         assistant_message = await self._generate_assistant_message(
             messages if not use_prev_conversation else messages[:-1],
@@ -318,13 +355,14 @@ class RagService:
             file_url=file_url,
             b64_file=b64_file,
             file_mime_type=file_mime_type,
+            references=references,
         )
         return [*messages, assistant_message]
 
     # TODO: rewrite this later to return only the document context as markdown for use as instructions
     async def _prepare_prompt(
         self, prompt: str | None = None, messages: list[ChatMessage] | None = None
-    ) -> tuple[str, list[ChatMessage]]:
+    ) -> tuple[str, list[ChatMessage], ChatMessageReferences]:
         if prompt is None and not messages:
             raise BadRequestException(
                 "A prompt and / or conversation messages must be provided."
@@ -337,7 +375,9 @@ class RagService:
 
         rewritten_prompt = await self._rewrite_query(last_prompt, messages)
 
-        document_context = await self._build_document_context(rewritten_prompt, limit=5)
+        document_context, references = await self._build_document_context(
+            rewritten_prompt, limit=10
+        )
         updated_prompt = f"""
 ## User Question
 
@@ -361,7 +401,7 @@ The following information comes from a knowledge base. Use it to answer the ques
                 updated_prompt, messages_copy
             )
 
-        return updated_prompt, messages_with_context
+        return updated_prompt, messages_with_context, references
 
     async def _init_chat_messages(
         self, messages: list[ChatMessage]
@@ -373,7 +413,7 @@ The following information comes from a knowledge base. Use it to answer the ques
         # last_prompt = self._get_last_prompt(messages)
         # rewritten_prompt = await self._rewrite_query(last_prompt, messages)
 
-        # document_context = await self._build_document_context(rewritten_prompt, limit=5)
+        # document_context, references = await self._build_document_context(rewritten_prompt, limit=5)
         # updated_prompt = f"{rewritten_prompt}\n\n{document_context}"
 
         # messages_copy = self.prompt_builder.copy_messages(messages)
@@ -382,10 +422,12 @@ The following information comes from a knowledge base. Use it to answer the ques
         # messages = await self._append_assistant_reply(messages_copy)
         # return messages
 
-        prompt, messages_with_context = await self._prepare_prompt(messages=messages)
+        prompt, messages_with_context, references = await self._prepare_prompt(
+            messages=messages
+        )
 
         assistant_message = await self._generate_assistant_message(
-            messages_with_context
+            messages_with_context, references=references
         )
         messages = [*messages, assistant_message]
 
@@ -410,7 +452,7 @@ The following information comes from a knowledge base. Use it to answer the ques
             # last_prompt = self._get_last_prompt(merged_messages)
             # rewritten_prompt = await self._rewrite_query(last_prompt, merged_messages)
 
-            # document_context = await self._build_document_context(
+            # document_context, references = await self._build_document_context(
             #     rewritten_prompt, limit=5
             # )
             # updated_prompt = f"{rewritten_prompt}\n\n{document_context}"
@@ -422,12 +464,12 @@ The following information comes from a knowledge base. Use it to answer the ques
 
             # merged_messages = await self._append_assistant_reply(merged_messages_copy)
 
-            prompt, messages_with_context = await self._prepare_prompt(
+            prompt, messages_with_context, references = await self._prepare_prompt(
                 messages=merged_messages
             )
 
             assistant_message = await self._generate_assistant_message(
-                messages_with_context
+                messages_with_context, references=references
             )
             merged_messages = [*merged_messages, assistant_message]
 
@@ -461,7 +503,8 @@ The following information comes from a knowledge base. Use it to answer the ques
         self,
         payload: AddPromptRequest,
         existing_messages: list[ChatMessage] | None = None,
-    ) -> UpdateChatRequest:
+        generate_assistant_message: bool = True,
+    ) -> tuple[UpdateChatRequest, ChatMessageReferences]:
         existing_messages = existing_messages or []
         updated_messages = self.prompt_builder.copy_messages(existing_messages)
 
@@ -469,7 +512,7 @@ The following information comes from a knowledge base. Use it to answer the ques
         # initial_prompt = f"{payload.prompt}"
         # rewritten_prompt = await self._rewrite_query(initial_prompt, existing_messages)
 
-        # document_context = await self._build_document_context(rewritten_prompt, limit=5)
+        # document_context, references = await self._build_document_context(rewritten_prompt, limit=5)
         # updated_prompt = f"{rewritten_prompt}\n\n{document_context}"
 
         # store the initial prompt, unchanged in payload, in the messages list
@@ -490,28 +533,37 @@ The following information comes from a knowledge base. Use it to answer the ques
         #     use_prev_conversation=True,
         # )
 
-        prompt, messages_with_context = await self._prepare_prompt(
+        prompt, messages_with_context, references = await self._prepare_prompt(
             # prompt=payload.prompt,
             messages=updated_messages
         )
 
-        assistant_message = await self._generate_assistant_message(
-            messages_with_context
-        )
-        updated_messages = [*updated_messages, assistant_message]
+        if generate_assistant_message:
+            assistant_message = await self._generate_assistant_message(
+                messages_with_context, references=references
+            )
+            updated_messages = [*updated_messages, assistant_message]
 
         update_payload = UpdateChatRequest(messages=updated_messages)
 
-        return update_payload
+        return update_payload, references
 
-    async def create_chat(self, payload: CreateChatRequest) -> Chat:
-        prepared_payload = await self._prepare_create_payload(payload)
+    async def create_chat(
+        self,
+        payload: CreateChatRequest,
+        process_messages: bool = True,
+    ) -> ChatResponse:
+
+        prepared_payload = payload
+        if process_messages:
+            prepared_payload = await self._prepare_create_payload(payload)
+
         created_chat = await self.chat_service.create_chat(prepared_payload)
         return created_chat
 
     async def _get_chat(
         self, chat_id: int | None = None, session_id: str | None = None
-    ) -> Chat:
+    ) -> ChatResponse:
         if chat_id is None and session_id is None:
             raise BadRequestException("Either chat_id or session_id must be provided.")
 
@@ -536,12 +588,16 @@ The following information comes from a knowledge base. Use it to answer the ques
         payload: UpdateChatRequest,
         chat_id: int | None = None,
         session_id: str | None = None,
-    ) -> Chat:
+        process_messages: bool = True,
+    ) -> ChatResponse:
         existing_chat = await self._get_chat(chat_id, session_id)
 
-        prepared_payload = await self._prepare_update_payload(
-            existing_chat.messages, payload
-        )
+        prepared_payload = payload
+        if process_messages:
+            prepared_payload = await self._prepare_update_payload(
+                existing_chat.messages, payload
+            )
+
         updated_chat = await self.chat_service.update_chat(chat_id, prepared_payload)
         return updated_chat
 
@@ -550,9 +606,20 @@ The following information comes from a knowledge base. Use it to answer the ques
         payload: AddPromptRequest,
         chat_id: int | None = None,
         session_id: str | None = None,
-    ) -> Chat:
+        update_chat: bool = True,
+        generate_assistant_message: bool = True,
+    ) -> tuple[ChatResponse, ChatMessageReferences]:
         existing_chat = await self._get_chat(chat_id, session_id)
 
-        update_payload = await self.process_prompt(payload, existing_chat.messages)
-        updated_chat = await self.chat_service.update_chat(chat_id, update_payload)
-        return updated_chat
+        update_payload, references = await self.process_prompt(
+            payload,
+            existing_messages=existing_chat.messages,
+            generate_assistant_message=generate_assistant_message,
+        )
+
+        if update_chat:
+            updated_chat = await self.chat_service.update_chat(chat_id, update_payload)
+        else:
+            updated_chat = ChatResponse.model_validate(existing_chat)
+
+        return updated_chat, references

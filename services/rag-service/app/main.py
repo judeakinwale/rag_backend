@@ -26,16 +26,18 @@ register_exception_handlers(app)
 
 origins = [
     "https://klafgo6.sharepoint.com",
+    "https://klafgo6.sharepoint.com",
     "https://localhost:3000",
     "http://localhost:3000",
     "https://localhost:5173",
     "http://localhost:5173",
 ]
+methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,  # ["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    # allow_credentials=True,
+    allow_methods=methods,  # ["*"],
     allow_headers=["*"],
 )
 app.add_middleware(RequestIdMiddleware)

@@ -3,6 +3,7 @@ import mimetypes
 from typing import Any
 from rag_packages.contracts.dto.chat import AddPromptRequest, ChatMessage
 from rag_packages.shared.ai.openai import ActorRole
+from rag_packages.contracts.dto.chat import ChatMessageReferences
 
 
 class PromptBuilder:
@@ -29,8 +30,9 @@ class PromptBuilder:
         *,
         role: ActorRole,
         content: str | list[dict[str, Any]],
+        references: ChatMessageReferences | None = None,
     ) -> ChatMessage:
-        return ChatMessage(role=role, content=content, timestamp=datetime.now(UTC))
+        return ChatMessage(role=role, content=content, timestamp=datetime.now(UTC), references=references)
 
     def build_prompt_content(
         self, payload: AddPromptRequest

@@ -2,6 +2,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, status, Query
 from rag_packages.contracts.dto.chat import (
     AddPromptRequest,
+    ChatResponse,
+    APIResponse,
     ChatAPIResponse,
     CreateChatRequest,
     UpdateChatRequest,
@@ -87,10 +89,13 @@ async def create_chat(
         False, description="If true, skip processing the chat messages before creation"
     ),
 ) -> ChatAPIResponse:
-    if skip_processing:
-        created_chat = await service.create_chat(body)
-    else:
-        created_chat = await rag_service.create_chat(body)
+    # if skip_processing:
+    #     created_chat = await service.create_chat(body)
+    # else:
+
+    # created_chat = await rag_service.create_chat(body, process_messages=not skip_processing)
+    # TODO: remove these after testing
+    created_chat = await rag_service.create_chat(body, process_messages=False)
 
     return ChatAPIResponse(
         success=True,
@@ -122,7 +127,8 @@ async def get_chat(
 
 update_with_prompt_kwargs = {
     "status_code": status.HTTP_200_OK,
-    "response_model": ChatAPIResponse,
+    # "response_model": ChatAPIResponse,
+    "response_model": APIResponse,
     "response_model_exclude_none": True,
     "response_model_exclude_unset": True,
     "summary": "Update a chat with a prompt",
@@ -136,18 +142,28 @@ async def update_chat_with_prompt(
     body: AddPromptRequest,
     chat_id: int | None = None,
     service: RagService = Depends(get_rag_service),
-) -> ChatAPIResponse:
+    # ) -> ChatAPIResponse:
+) -> APIResponse:
 
     if chat_id is None and body.session_id is None:
         raise BadRequestException("Either chat_id or session_id must be provided.")
 
-    updated_chat = await service.update_chat_with_prompt(
-        chat_id=chat_id, session_id=body.session_id, payload=body
+    updated_chat, references = await service.update_chat_with_prompt(
+        chat_id=chat_id,
+        session_id=body.session_id,
+        payload=body,
+        # # TODO: remove these after testing
+        # update_chat=False,
+        # generate_assistant_message=False,
     )
 
-    return ChatAPIResponse(
+    data = {"chat": updated_chat, "references": references}
+
+    # return ChatAPIResponse(
+    return APIResponse(
         success=True,
-        data=updated_chat,
+        # data=updated_chat,
+        data=data,
     )
 
 
