@@ -11,7 +11,7 @@ class Chat(Base):
     __tablename__ = "chats"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column(Text, index=True, unique=True)
+    email: Mapped[str] = mapped_column(Text, index=True)
 
     # messages: Mapped[list[dict[str, Any]]] = mapped_column(
     messages: Mapped[list[ChatMessage]] = mapped_column(

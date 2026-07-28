@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str
 
     INGEST_SERVICE_ORIGIN: str
+    GET_DOCUMENTS_PATH: str = "api/v1/documents"
+    ROOT_CERT_PATH: str = "/home/jude/.local/share/mkcert/rootCA.pem"
 
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10 MB in bytes
     CHUNK_SIZE: int = 1000

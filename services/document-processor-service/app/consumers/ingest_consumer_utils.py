@@ -26,7 +26,7 @@ class IngestConsumerUtils:
         self.root_cert_path = (
             root_cert_path
             if root_cert_path is not None
-            else "/home/jude/.local/share/mkcert/rootCA.pem"
+            else settings.ROOT_CERT_PATH
         )
 
     def _chunk_to_vector_document(

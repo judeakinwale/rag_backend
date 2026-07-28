@@ -9,23 +9,23 @@ validate_original_event = KafkaConsumer.validate_dlq_original_event
 
 
 async def handle_ingest_started(event: ingest_events.IngestStartedEvent):
-    print(f"[{service_name}] Handling ingest.started event: {event}")
+    print(f"[{service_name}] Handling ingest.started ") # event: {event}
 
 
 async def handle_processing_started(event: ingest_events.ProcessingStartedEvent):
-    print(f"[{service_name}] Handling ingest.processing event: {event}")
+    print(f"[{service_name}] Handling ingest.processing ") # event: {event}
 
 
 async def handle_processing_completed(event: ingest_events.ProcessingCompletedEvent):
-    print(f"[{service_name}] Handling ingest.processing.completed event: {event}")
+    print(f"[{service_name}] Handling ingest.processing.completed ") # event: {event}
 
 
 async def handle_processing_failed(event: ingest_events.ProcessingFailedEvent):
-    print(f"[{service_name}] Handling ingest.processing.failed event: {event}")
+    print(f"[{service_name}] Handling ingest.processing.failed ") # event: {event}
 
 
 async def handle_ingest_completed(event: ingest_events.IngestCompletedEvent):
-    print(f"[{service_name}] Handling ingest.completed event: {event}")
+    print(f"[{service_name}] Handling ingest.completed ") # event: {event}
 
 
 # TODO: implement DLQ handler with replay and send to parking lot topic for failed dlq

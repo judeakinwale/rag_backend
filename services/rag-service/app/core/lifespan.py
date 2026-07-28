@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"Error initializing OpenAIService: {e}")
         app.state.openai_service = None
-        raise e
+        raise
 
     try:
         qdrant_service_config = QdrantServiceConfig(

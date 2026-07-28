@@ -94,8 +94,10 @@ async def create_chat(
     # else:
 
     # created_chat = await rag_service.create_chat(body, process_messages=not skip_processing)
-    # TODO: remove these after testing
-    created_chat = await rag_service.create_chat(body, process_messages=False)
+    # TODO: remove the above code after testing
+    created_chat = await rag_service.create_chat(
+        body, process_messages=not skip_processing
+    )
 
     return ChatAPIResponse(
         success=True,
@@ -116,6 +118,12 @@ async def get_chat(
     service: ChatService = Depends(
         get_chat_service,
     ),
+    # service: Annotated[
+    #     ChatService,
+    #     Depends(
+    #         get_chat_service,
+    #     ),
+    # ],
 ) -> ChatAPIResponse:
     chat = await service.get_chat_by_id(chat_id)
 
@@ -187,12 +195,14 @@ async def update_chat(
         False, description="If true, skip processing the chat messages before creation"
     ),
 ) -> ChatAPIResponse:
-    if skip_processing:
-        updated_chat = await service.update_chat(chat_id, body)
-    else:
-        updated_chat = await rag_service.update_chat(chat_id, body)
+    # if skip_processing:
+    #     updated_chat = await service.update_chat(chat_id, body)
+    # else:
+    #     updated_chat = await rag_service.update_chat(chat_id, body)
 
-    # updated_chat = await service.update_chat(chat_id, body)
+    # # updated_chat = await service.update_chat(chat_id, body)
+    
+    updated_chat = await rag_service.update_chat(chat_id, body, process_messages=not skip_processing)
 
     return ChatAPIResponse(
         success=True,

@@ -25,12 +25,13 @@ from rag_packages.contracts.dto.chat import (
     UpdateChatRequest,
     ChatResponse,
 )
-from rag_packages.contracts.dto.vector_document import VectorDocumentPayload
+from rag_packages.contracts.dto.vector_document import VectorDocumentResponse
 from rag_packages.shared.exception.exception import BadRequestException
 
 from app.core.config import settings
 from app.services.chat_service import ChatService, Chat
 from app.services.prompt_builder_service import PromptBuilder
+from rag_packages.shared.utils.format import dicts_to_markdown
 
 # from app.repositories.chat_repository import ChatRepository
 
@@ -147,6 +148,13 @@ class RagService:
     ) -> list[DocumentResponse]:
         print({"root_cert_path": self.root_cert_path})
         async with httpx.AsyncClient(verify=self.root_cert_path, timeout=30) as client:
+            print(
+                {
+                    "get_documents_url": f"{self._ingest_service_origin}/{self._get_documents_path}",
+                    "ingest_service_origin": self._ingest_service_origin,
+                    "get_documents_path": self._get_documents_path,
+                }
+            )
             response = await client.get(
                 f"{self._ingest_service_origin}/{self._get_documents_path}",
                 params={"query": query, "limit": limit},
@@ -165,8 +173,10 @@ class RagService:
         queries = query if is_list else [query]
 
         documents: list[DocumentResponse] = []
-        for query in queries:
-            docs = await self.get_query_matching_documents(query=query, limit=limit)
+        for query_item in queries:
+            docs = await self.get_query_matching_documents(
+                query=query_item, limit=limit
+            )
             documents.extend(docs)
 
         return documents
@@ -180,9 +190,21 @@ class RagService:
         points = await self.qdrant_service.search(query=query, limit=limit)
         return points
 
-    def _get_point_payload(self, point: ScoredPoint) -> VectorDocumentPayload:
+    def _get_point_payload(self, point: ScoredPoint) -> VectorDocumentResponse:
         payload = point.payload
-        return VectorDocumentPayload.model_validate(payload)
+        return VectorDocumentResponse.model_validate(payload)
+
+    def _get_vector_doc_details(
+        self, doc: VectorDocumentResponse, exclude_keys: list[str] | None = None
+    ) -> dict:
+        details = doc.details.model_dump() if doc.details else {}
+
+        if exclude_keys:
+            for key in exclude_keys:
+                if key in details:
+                    del details[key]
+
+        return details
 
     # build markdown context strings from the retrieved documents and vector documents
     async def _build_document_context(
@@ -195,12 +217,40 @@ class RagService:
 
         # TODO: add the payload details and the document metadata to the context
         # Look into moving this into prompt_builder
-        context = (
-            f"{'\n'.join([payload.text for payload in payloads])} \n"
-            f"{'\n'.join([str(payload.details.model_dump()) for payload in payloads])} \n"
-            f"{'\n'.join([str(payload.file_metadata.model_dump()) for payload in payloads])} \n"
-            # f"{'\n'.join([document.file_metadata for document in documents])} \n"
+
+        vector_doc_markdown = dicts_to_markdown(
+            [
+                self.chat_service.normalize_chat_message_vector_documents(
+                    payload
+                ).model_dump()
+                for payload in payloads
+            ],
+            ["text", "file_metadata"],
+            section_title="Retrieved Vector Documents",
+            subtitle_key="file_name",
         )
+
+        vector_doc_details_markdown = dicts_to_markdown(
+            [self._get_vector_doc_details(payload) for payload in payloads],
+            ["pages", "headings", "captions", "tables", "figures"],
+            section_title="Retrieved Vector Document Details",
+            subtitle_key="headings",
+        )
+
+        # documents_markdown = dicts_to_markdown(
+        #     [self.chat_service.normalize_chat_message_documents(doc).model_dump() for doc in documents],
+        #     ["text", "file_metadata"],
+        #     section_title="Retrieved Document References",
+        #     subtitle_key="file_name",
+        # )
+
+        context = f"{vector_doc_markdown}\n{vector_doc_details_markdown}\n"
+        # context = (
+        #     f"{'\n'.join([payload.text for payload in payloads])} \n"
+        #     f"{'\n'.join([str(payload.details.model_dump()) for payload in payloads])} \n"
+        #     f"{'\n'.join([str(payload.file_metadata.model_dump()) for payload in payloads])} \n"
+        #     # f"{'\n'.join([document.file_metadata for document in documents])} \n"
+        # )
 
         references = ChatMessageReferences(
             vector_documents=payloads,
@@ -378,6 +428,7 @@ class RagService:
         document_context, references = await self._build_document_context(
             rewritten_prompt, limit=10
         )
+
         updated_prompt = f"""
 ## User Question
 
@@ -610,7 +661,7 @@ The following information comes from a knowledge base. Use it to answer the ques
         generate_assistant_message: bool = True,
     ) -> tuple[ChatResponse, ChatMessageReferences]:
         existing_chat = await self._get_chat(chat_id, session_id)
-
+        print({"existing_chat": existing_chat})
         update_payload, references = await self.process_prompt(
             payload,
             existing_messages=existing_chat.messages,
@@ -618,7 +669,9 @@ The following information comes from a knowledge base. Use it to answer the ques
         )
 
         if update_chat:
-            updated_chat = await self.chat_service.update_chat(chat_id, update_payload)
+            updated_chat = await self.chat_service.update_chat(
+                existing_chat.id, update_payload
+            )
         else:
             updated_chat = ChatResponse.model_validate(existing_chat)
 

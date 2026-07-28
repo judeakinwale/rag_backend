@@ -9,6 +9,8 @@ service_name = settings.APP_NAME
 consumer_utils = IngestConsumerUtils()
 validate_original_event = KafkaConsumer.validate_dlq_original_event
 
+# Force container build
+
 
 async def handle_ingest_started(event: ingest_events.IngestStartedEvent):
     print(f"[{service_name}] Handling ingest.started event: {event}")

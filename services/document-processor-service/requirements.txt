@@ -11,14 +11,14 @@ sqlalchemy
 asyncpg
 alembic
 
+openai[aiohttp]
+
 # ? specialized packages for vector db management, vector search and embeddings
 qdrant-client[fastembed]
 
-openai[aiohttp]
-
 docling
 docling-core[chunking-openai]
-# rapidocr
+rapidocr
 langchain-text-splitters
 
 argon2-cffi # for password hashing and verification
