@@ -135,8 +135,8 @@ async def get_chat(
 
 update_with_prompt_kwargs = {
     "status_code": status.HTTP_200_OK,
-    # "response_model": ChatAPIResponse,
-    "response_model": APIResponse,
+    "response_model": ChatAPIResponse,
+    # "response_model": APIResponse,
     "response_model_exclude_none": True,
     "response_model_exclude_unset": True,
     "summary": "Update a chat with a prompt",
@@ -150,8 +150,8 @@ async def update_chat_with_prompt(
     body: AddPromptRequest,
     chat_id: int | None = None,
     service: RagService = Depends(get_rag_service),
-    # ) -> ChatAPIResponse:
-) -> APIResponse:
+) -> ChatAPIResponse:
+    # ) -> APIResponse:
 
     if chat_id is None and body.session_id is None:
         raise BadRequestException("Either chat_id or session_id must be provided.")
@@ -165,13 +165,13 @@ async def update_chat_with_prompt(
         # generate_assistant_message=False,
     )
 
-    data = {"chat": updated_chat, "references": references}
+    # data = {"chat": updated_chat, "references": references}
 
     # return ChatAPIResponse(
     return APIResponse(
         success=True,
-        # data=updated_chat,
-        data=data,
+        data=updated_chat,
+        # data=data,
     )
 
 
@@ -201,8 +201,10 @@ async def update_chat(
     #     updated_chat = await rag_service.update_chat(chat_id, body)
 
     # # updated_chat = await service.update_chat(chat_id, body)
-    
-    updated_chat = await rag_service.update_chat(chat_id, body, process_messages=not skip_processing)
+
+    updated_chat = await rag_service.update_chat(
+        chat_id, body, process_messages=not skip_processing
+    )
 
     return ChatAPIResponse(
         success=True,
