@@ -232,7 +232,7 @@ class RagService:
 
         vector_doc_details_markdown = dicts_to_markdown(
             [self._get_vector_doc_details(payload) for payload in payloads],
-            ["pages", "headings", "captions", "tables", "figures"],
+            ["pages", "headings", "captions"],  # , "tables", "figures"
             section_title="Retrieved Vector Document Details",
             subtitle_key="headings",
         )
@@ -454,8 +454,33 @@ The following information comes from a knowledge base. Use it to answer the ques
 
         return updated_prompt, messages_with_context, references
 
+    async def _add_file_to_last_message(
+        self,
+        messages: list[ChatMessage],
+        b64_file: str,
+        b64_file_type: str | None = None,
+    ) -> list[ChatMessage]:
+        # update the last message content with a file if a b64 file is provided
+        file = await self.openai_service._create_file(
+            b64_file_str=b64_file, b64_file_type=b64_file_type
+        )
+        b64_file_id = file.id
+
+        if isinstance(messages[-1].content, str):
+            messages[-1].content = [
+                {"type": "input_text", "text": messages[-1].content},
+                {"type": "input_file", "file_id": b64_file_id},
+            ]
+        else:
+            messages[-1].content.append({"type": "input_file", "file_id": file.id})
+
+        return messages
+
     async def _init_chat_messages(
-        self, messages: list[ChatMessage]
+        self,
+        messages: list[ChatMessage],
+        b64_file: str | None = None,
+        b64_file_type: str | None = None,
     ) -> list[ChatMessage]:
         if not messages:
             return []
@@ -473,6 +498,11 @@ The following information comes from a knowledge base. Use it to answer the ques
         # messages = await self._append_assistant_reply(messages_copy)
         # return messages
 
+        if b64_file is not None:
+            messages = await self._add_file_to_last_message(
+                messages, b64_file, b64_file_type=b64_file_type
+            )
+
         prompt, messages_with_context, references = await self._prepare_prompt(
             messages=messages
         )
@@ -485,7 +515,11 @@ The following information comes from a knowledge base. Use it to answer the ques
         return messages
 
     async def _update_chat_messages(
-        self, existing_messages: list[ChatMessage], payload: UpdateChatRequest
+        self,
+        existing_messages: list[ChatMessage],
+        payload: UpdateChatRequest,
+        b64_file: str | None = None,
+        b64_file_type: str | None = None,
     ) -> list[ChatMessage]:
         existing_messages = self.prompt_builder.copy_messages(existing_messages)
         replacement_messages = self.prompt_builder.copy_messages(payload.messages)
@@ -515,6 +549,13 @@ The following information comes from a knowledge base. Use it to answer the ques
 
             # merged_messages = await self._append_assistant_reply(merged_messages_copy)
 
+            if b64_file is not None:
+                merged_messages = await self._add_file_to_last_message(
+                    merged_messages,
+                    b64_file or payload.b64_file,
+                    b64_file_type=b64_file_type or payload.b64_file_type,
+                )
+
             prompt, messages_with_context, references = await self._prepare_prompt(
                 messages=merged_messages
             )
@@ -527,9 +568,13 @@ The following information comes from a knowledge base. Use it to answer the ques
         return merged_messages
 
     async def _prepare_create_payload(
-        self, payload: CreateChatRequest
+        self, payload: CreateChatRequest, b64_file: str | None = None
     ) -> CreateChatRequest:
-        messages = await self._init_chat_messages(payload.messages)
+        messages = await self._init_chat_messages(
+            payload.messages,
+            b64_file=payload.b64_file,
+            b64_file_type=payload.b64_file_type,
+        )
 
         return CreateChatRequest(
             email=payload.email,
@@ -541,7 +586,12 @@ The following information comes from a knowledge base. Use it to answer the ques
     async def _prepare_update_payload(
         self, existing_messages: list[ChatMessage], payload: UpdateChatRequest
     ) -> UpdateChatRequest:
-        merged_messages = await self._update_chat_messages(existing_messages, payload)
+        merged_messages = await self._update_chat_messages(
+            existing_messages,
+            payload,
+            b64_file=payload.b64_file,
+            b64_file_type=payload.b64_file_type,
+        )
 
         return UpdateChatRequest(
             email=payload.email,
@@ -555,6 +605,8 @@ The following information comes from a knowledge base. Use it to answer the ques
         payload: AddPromptRequest,
         existing_messages: list[ChatMessage] | None = None,
         generate_assistant_message: bool = True,
+        b64_file: str | None = None,
+        b64_file_type: str | None = None,
     ) -> tuple[UpdateChatRequest, ChatMessageReferences]:
         existing_messages = existing_messages or []
         updated_messages = self.prompt_builder.copy_messages(existing_messages)
@@ -566,10 +618,17 @@ The following information comes from a knowledge base. Use it to answer the ques
         # document_context, references = await self._build_document_context(rewritten_prompt, limit=5)
         # updated_prompt = f"{rewritten_prompt}\n\n{document_context}"
 
+        file_id: str | None = None
+        if b64_file is not None:
+            file = await self.openai_service._create_file(
+                b64_file_str=b64_file, b64_file_type=b64_file_type
+            )
+            file_id = file.id
+
         # store the initial prompt, unchanged in payload, in the messages list
         new_message = self.prompt_builder.create_chat_message(
             role=ActorRole.USER,
-            content=self.prompt_builder.build_prompt_content(payload),
+            content=self.prompt_builder.build_prompt_content(payload, file_id=file_id),
         )
         updated_messages.append(new_message)
 
@@ -666,6 +725,8 @@ The following information comes from a knowledge base. Use it to answer the ques
             payload,
             existing_messages=existing_chat.messages,
             generate_assistant_message=generate_assistant_message,
+            b64_file=payload.b64_file,
+            b64_file_type=payload.file_type,
         )
 
         if update_chat:

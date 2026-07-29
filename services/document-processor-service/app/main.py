@@ -20,6 +20,7 @@ from rag_packages.shared.kafka.producer import KafkaProducer
 setup_logging(logging.INFO)
 enable_package_logging(level=logging.INFO, formatter="json")
 
+# # force custom package reinstall
 
 app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 

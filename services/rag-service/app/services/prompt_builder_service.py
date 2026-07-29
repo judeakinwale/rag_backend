@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
 import mimetypes
+from collections.abc import Callable, Coroutine
 from typing import Any
+from openai.types import FilePurpose, FileObject
 from rag_packages.contracts.dto.chat import AddPromptRequest, ChatMessage
 from rag_packages.shared.ai.openai import ActorRole
 from rag_packages.contracts.dto.chat import ChatMessageReferences
@@ -32,10 +34,15 @@ class PromptBuilder:
         content: str | list[dict[str, Any]],
         references: ChatMessageReferences | None = None,
     ) -> ChatMessage:
-        return ChatMessage(role=role, content=content, timestamp=datetime.now(UTC), references=references)
+        return ChatMessage(
+            role=role,
+            content=content,
+            timestamp=datetime.now(UTC),
+            references=references,
+        )
 
     def build_prompt_content(
-        self, payload: AddPromptRequest
+        self, payload: AddPromptRequest, file_id: str | None = None
     ) -> str | list[dict[str, Any]]:
         content: str | list[dict[str, Any]] = payload.prompt
 
@@ -45,18 +52,22 @@ class PromptBuilder:
             ]
             image_url = payload.file_url
 
-            if payload.b64_file is not None:
-                mime_type = self._get_mime_type(payload.file_mime_type or payload.file_type)
-                image_url = f"data:{mime_type};base64,{payload.b64_file}"
+            # if payload.b64_file is not None:
+            #     mime_type = self._get_mime_type(payload.file_mime_type or payload.file_type)
+            #     image_url = f"data:{mime_type};base64,{payload.b64_file}"
 
-            if image_url is not None:
-                parts.append(
-                    {
-                        "type": "input_image",
-                        "image_url": image_url,
-                        "detail": "auto",
-                    }
-                )
+            if payload.b64_file is not None and file_id is not None:
+                parts.append({"type": "input_file", "file_id": file_id})
+
+            # # ! update this to account for restricted files and temporary file URLs 
+            # if image_url is not None:
+            #     parts.append(
+            #         {
+            #             "type": "input_image",
+            #             "image_url": image_url,
+            #             "detail": "auto",
+            #         }
+            #     )
 
             content = parts
 
