@@ -167,8 +167,8 @@ async def update_chat_with_prompt(
 
     # data = {"chat": updated_chat, "references": references}
 
-    # return ChatAPIResponse(
-    return APIResponse(
+    return ChatAPIResponse(
+        # return APIResponse(
         success=True,
         data=updated_chat,
         # data=data,
