@@ -708,7 +708,9 @@ The following information comes from a knowledge base. Use it to answer the ques
                 existing_chat.messages, payload
             )
 
-        updated_chat = await self.chat_service.update_chat(chat_id, prepared_payload)
+        updated_chat = await self.chat_service.update_chat(
+            existing_chat.id, prepared_payload
+        )
         return updated_chat
 
     async def update_chat_with_prompt(

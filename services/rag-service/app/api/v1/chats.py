@@ -203,7 +203,7 @@ async def update_chat(
     # # updated_chat = await service.update_chat(chat_id, body)
 
     updated_chat = await rag_service.update_chat(
-        chat_id, body, process_messages=not skip_processing
+        body, chat_id=chat_id, process_messages=not skip_processing
     )
 
     return ChatAPIResponse(
