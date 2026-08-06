@@ -24,9 +24,7 @@ class IngestConsumerUtils:
     def __init__(self, root_cert_path: str | None = None):
         self.ingest_origin = settings.INGEST_SERVICE_ORIGIN
         self.root_cert_path = (
-            root_cert_path
-            if root_cert_path is not None
-            else settings.ROOT_CERT_PATH
+            root_cert_path if root_cert_path is not None else settings.ROOT_CERT_PATH
         )
 
     def _chunk_to_vector_document(
@@ -85,6 +83,20 @@ class IngestConsumerUtils:
             file_type=document.file_type,
             file_name=document.name,
         )
+
+        # New documents are created during an ingest, so:
+        #   ingest_initiated_at <= created_at
+        # Existing documents updated by a later ingest have:
+        #   ingest_initiated_at > created_at
+        is_new_document = document.ingest_initiated_at <= document.created_at
+        # check for existing vector documents (points) for the document in qdrant and delete them before adding new chunks
+        if not is_new_document:
+            logger.info(
+                f"Existing document with id {document.id}. Deleting related vector documents before adding new chunks."
+            )
+
+            delete_filter = {"doc_id": document.id}
+            await container.qdrant_service.remove_vectors_by_filter(delete_filter)
 
         # store each processed document chunk in qdrant
         vector_documents = [

@@ -153,19 +153,19 @@ class DocumentService:
 
             # await self.uow.session.refresh(document)
             response = DocumentResponse.model_validate(document)
+            event = DocumentUpdatedEvent.model_validate(document)
 
-        event = DocumentUpdatedEvent.model_validate(document)
         event.updated = list(payload.model_dump(exclude_unset=True).keys())
         await self.producer.document_updated(event)
 
-        print(
-            {
-                "updated document": document.__dict__,
-                "file_url": document.file_url,
-                "event": event.model_dump(),
-                "updated fields": event.updated,
-            }
-        )
+        # print(
+        #     {
+        #         "updated document": document.__dict__,
+        #         "file_url": document.file_url,
+        #         "event": event.model_dump(),
+        #         "updated fields": event.updated,
+        #     }
+        # )
 
         return response
         # document_dict = {c.key: getattr(document, c.key) for c in inspect(document).mapper.column_attrs}
