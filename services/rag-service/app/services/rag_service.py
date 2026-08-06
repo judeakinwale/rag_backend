@@ -1,5 +1,10 @@
+import asyncio
 import logging
 import httpx
+import torch
+import torch.nn.functional as F
+
+# from fastembed import TextEmbedding
 from rag_packages.shared.processing.qdrant import QdrantService, ScoredPoint
 from rag_packages.shared.ai.openai import (
     OpenAIService,
@@ -31,6 +36,7 @@ from rag_packages.shared.exception.exception import BadRequestException
 from app.core.config import settings
 from app.services.chat_service import ChatService, Chat
 from app.services.prompt_builder_service import PromptBuilder
+from app.utils.skip_words import general_skip_list
 from rag_packages.shared.utils.format import dicts_to_markdown
 
 # from app.repositories.chat_repository import ChatRepository
@@ -63,6 +69,7 @@ class RagService:
         qdrant_service: QdrantService,
         openai_service: OpenAIService | None = None,
         root_cert_path: str | None = None,
+        skip_list: list[str] = general_skip_list,
     ):
         # self.chat_repository = chat_repository
         self.chat_service = chat_service
@@ -70,11 +77,46 @@ class RagService:
         self.openai_service = openai_service
         self.prompt_builder = PromptBuilder()
 
+        # # self.model_name = "BAAI/bge-base-en"
+        # self.embedding_model = TextEmbedding(
+        #     # model_name=self.model_name,
+        #     lazy_load=True,
+        # )
+
         self.root_cert_path = (
             root_cert_path if root_cert_path is not None else settings.ROOT_CERT_PATH
         )
         self._ingest_service_origin = settings.INGEST_SERVICE_ORIGIN
         self._get_documents_path = settings.GET_DOCUMENTS_PATH
+        self._skip_list = skip_list
+        self._skip_list_embeddings: list[list[float]] = []
+
+    # async def _generate_vector_embeddings(self, texts: list[str]) -> list[list[float]]:
+    #     if not texts:
+    #         raise ValueError(
+    #             f"[{self.service_name}] texts are required to generate embeddings."
+    #         )
+
+    #     # NOTE: if unstable under heavy concurrency, protect embedding calls with an asyncio.Lock or use a small worker pool.
+    #     embeddings = await asyncio.to_thread(
+    #         lambda: [
+    #             embedding.tolist() for embedding in self.embedding_model.embed(texts)
+    #         ]
+    #     )
+    #     if not embeddings:
+    #         raise ValueError(
+    #             f"[{self.service_name}] Failed to generate embeddings for the supplied texts."
+    #         )
+
+    #     return embeddings
+
+    async def _get_skip_list_embeddings(self) -> list[list[float]]:
+        if not self._skip_list_embeddings:
+            self._skip_list_embeddings = (
+                await self.qdrant_service.generate_vector_embeddings(self._skip_list)
+            )
+
+        return self._skip_list_embeddings
 
     # rewrite might be expensive, so added skip flag for testing and debugging
     async def _rewrite_query(
@@ -194,25 +236,105 @@ class RagService:
         payload = point.payload
         return VectorDocumentResponse.model_validate(payload)
 
-    def _get_vector_doc_details(
-        self, doc: VectorDocumentResponse, exclude_keys: list[str] | None = None
-    ) -> dict:
-        details = doc.details.model_dump() if doc.details else {}
+    async def _should_skip_context_building(
+        self, prompt: str | None = None, threshold: float = 0.9
+    ) -> bool:
+        cleaned_query = [prompt.strip()] if prompt else None
+        if not cleaned_query:
+            return not cleaned_query
 
-        if exclude_keys:
-            for key in exclude_keys:
-                if key in details:
-                    del details[key]
+        prompt_embeddings = await self.qdrant_service.generate_vector_embeddings(
+            cleaned_query
+        )
+        skip_embeddings = await self._get_skip_list_embeddings()
 
-        return details
+        single_prompt_embedding = prompt_embeddings[0] if prompt_embeddings else None
+        prompt_tensor = torch.tensor(single_prompt_embedding)
+
+        for emb in skip_embeddings:
+            emb_tensor = torch.tensor(emb)
+            score = F.cosine_similarity(
+                prompt_tensor.unsqueeze(0), emb_tensor.unsqueeze(0)
+            ).item()
+
+            print({"score": score, "threshold": threshold})
+
+            if score >= threshold:
+                return True
+
+        return False
 
     # build markdown context strings from the retrieved documents and vector documents
     async def _build_document_context(
-        self, query: str | list[str], limit: int = 5
-    ) -> tuple[str, ChatMessageReferences]:
+        self,
+        query: str | list[str],
+        limit: int = 5,
+        relevance_threshold: float = 0.8,
+        min_query_length: int = 8,
+    ) -> tuple[str, ChatMessageReferences | None]:
+        default_return = "", None
+
+        is_short_query = (
+            len(query) < min_query_length if isinstance(query, str) else False
+        )
+        if is_short_query:
+            logger.info(
+                "Query is too short to build a meaningful context. Skipping context building.",
+                extra={"query": query},
+            )
+            return default_return
+
+        should_skip = await self._should_skip_context_building(query)
+        if should_skip:
+            # raise ValueError(
+            #     "The query is too generic or common to build a meaningful context. Please provide a more specific query."
+            #     f"query: {query}, should_skip: {should_skip}"
+            # )
+            return default_return
 
         points = await self._get_matching_vector_documents(query=query, limit=limit)
-        payloads = [self._get_point_payload(point) for point in points]
+        # payloads = [
+        #     self._get_point_payload(point) for point in points if point.score >= 8.5
+        # ]
+
+        payloads: list[VectorDocumentResponse] = []
+        for point in points:
+            payload = self._get_point_payload(point)
+
+            if (
+                point.score >= relevance_threshold
+                and payload.text
+                and len(payload.text.strip()) > min_query_length
+            ):
+                payloads.append(payload)
+
+        # # print({"points": points})
+        # updated_points: list[ScoredPoint] = []
+        # for p in points:
+        #     payload = self._get_point_payload(p)
+
+        #     if (
+        #         p.score >= relevance_threshold
+        #         and payload.text
+        #         and len(payload.text.strip()) > min_query_length
+        #     ):
+        #         updated_p = {
+        #             "id": p.id,
+        #             "score": p.score,
+        #             "order_value": p.order_value,
+        #             "shard_key": p.shard_key,
+        #             "vector": p.vector,
+        #             "version": p.version,
+        #             "text": payload.text,
+        #             "file_url": payload.file_metadata.file_url,
+        #         }
+        #         updated_points.append(updated_p)
+
+        # print({"updated_points": updated_points})
+
+        if not payloads:
+            return default_return
+
         documents = await self._get_matching_documents(query=query, limit=limit)
 
         # TODO: add the payload details and the document metadata to the context
@@ -221,30 +343,35 @@ class RagService:
         vector_doc_markdown = dicts_to_markdown(
             [
                 self.chat_service.normalize_chat_message_vector_documents(
-                    payload
+                    payload, True
                 ).model_dump()
                 for payload in payloads
             ],
-            ["text", "file_metadata"],
+            ["text", "file_metadata", "details_markdown"],
             section_title="Retrieved Vector Documents",
             subtitle_key="file_name",
         )
 
-        vector_doc_details_markdown = dicts_to_markdown(
-            [self._get_vector_doc_details(payload) for payload in payloads],
-            ["pages", "headings", "captions"],  # , "tables", "figures"
-            section_title="Retrieved Vector Document Details",
-            subtitle_key="headings",
-        )
+        print({"vector_doc_markdown": vector_doc_markdown})
 
-        # documents_markdown = dicts_to_markdown(
-        #     [self.chat_service.normalize_chat_message_documents(doc).model_dump() for doc in documents],
-        #     ["text", "file_metadata"],
-        #     section_title="Retrieved Document References",
-        #     subtitle_key="file_name",
+        context = f"{vector_doc_markdown}\n"
+
+        # # ? this is handled as part of normalize_chat_message_vector_documents now
+        # vector_doc_details_markdown = dicts_to_markdown(
+        #     [self.chat_service.get_vector_doc_details(payload) for payload in payloads],
+        #     ["pages"],  # , "headings", "captions", "tables", "figures"
+        #     section_title="Retrieved Vector Document Details",
+        #     subtitle_key="headings",
         # )
 
-        context = f"{vector_doc_markdown}\n{vector_doc_details_markdown}\n"
+        # # documents_markdown = dicts_to_markdown(
+        # #     [self.chat_service.normalize_chat_message_documents(doc).model_dump() for doc in documents],
+        # #     ["text", "file_metadata"],
+        # #     section_title="Retrieved Document References",
+        # #     subtitle_key="file_name",
+        # # )
+
+        # context = f"{vector_doc_markdown}\n{vector_doc_details_markdown}\n"
         # context = (
         #     f"{'\n'.join([payload.text for payload in payloads])} \n"
         #     f"{'\n'.join([str(payload.details.model_dump()) for payload in payloads])} \n"
@@ -412,7 +539,7 @@ class RagService:
     # TODO: rewrite this later to return only the document context as markdown for use as instructions
     async def _prepare_prompt(
         self, prompt: str | None = None, messages: list[ChatMessage] | None = None
-    ) -> tuple[str, list[ChatMessage], ChatMessageReferences]:
+    ) -> tuple[str, list[ChatMessage], ChatMessageReferences | None]:
         if prompt is None and not messages:
             raise BadRequestException(
                 "A prompt and / or conversation messages must be provided."
@@ -442,6 +569,8 @@ class RagService:
 -------
 
 The following information comes from a knowledge base. Use it to answer the question.
+You should not reference retrieved documents in general terms, but instead use the information to provide a specific and relevant answer.
+If a specific answer is from one or more specific documents and you need to reference them, you should provide the document name and / or file URL in your answer.
 
 {document_context}
 """
@@ -647,6 +776,13 @@ The following information comes from a knowledge base. Use it to answer the ques
             # prompt=payload.prompt,
             messages=updated_messages
         )
+
+        # raise ValueError(
+        #     "Debugging: Check the values of prompt, messages_with_context, and references. \n"
+        #     f"prompt: {prompt}, \n"
+        #     # f"messages_with_context: {messages_with_context}, \n"
+        #     f"references ids: {[ref.doc_id for ref in references.vector_documents] if references and references.vector_documents else None}, \n"
+        # )
 
         if generate_assistant_message:
             assistant_message = await self._generate_assistant_message(

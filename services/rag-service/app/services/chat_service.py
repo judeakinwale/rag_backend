@@ -32,6 +32,7 @@ from rag_packages.shared.database.query import QueryParams
 from rag_packages.shared.database.uow import UnitOfWork
 from rag_packages.shared.exception.exception import NotFoundException
 from rag_packages.shared.utils.format import (
+    dicts_to_markdown,
     get_datetime_from_timestamp_ms,
     normalize_datetime_to_timestamp_ms,
     normalize_timestamp_to_milliseconds,
@@ -91,8 +92,22 @@ class ChatService:
         return norm_doc
 
     @staticmethod
+    def get_vector_doc_details(
+        doc: VectorDocumentResponse, exclude_keys: list[str] | None = None
+    ) -> dict:
+        details = doc.details.model_dump() if doc.details else {}
+
+        if exclude_keys:
+            for key in exclude_keys:
+                if key in details:
+                    del details[key]
+
+        return details
+
+    @staticmethod
     def normalize_chat_message_vector_documents(
         vector_doc: VectorDocumentResponse | VectorDocumentResponseJSON,
+        include_details: bool = False,
     ) -> VectorDocumentResponseJSON:
         if vector_doc.file_metadata is not None:
             vector_doc.file_metadata.last_modified = normalize_datetime_to_timestamp_ms(
@@ -107,6 +122,23 @@ class ChatService:
         )
 
         norm_vector_doc = VectorDocumentResponseJSON.model_validate(vector_doc)
+
+        if include_details and vector_doc.details is not None:
+            details_dict = ChatService.get_vector_doc_details(
+                vector_doc,
+                exclude_keys=["headings", "captions", "tables", "figures"],  # "pages",
+            )
+            # norm_vector_doc.details_dict = details_dict
+
+            # force package reinstall
+            # only the pages are somewhat relevant for this use case
+            norm_vector_doc.details_markdown = dicts_to_markdown(
+                [details_dict],
+                ["pages"],  # , "headings", "captions", "tables", "figures"
+                section_title="Document Details",
+                # subtitle_key="headings",
+                base_header_prefix="\n####",
+            )
 
         return norm_vector_doc
 

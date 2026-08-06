@@ -18,6 +18,7 @@ openai[aiohttp]
 qdrant-client[fastembed] # used in this service
 
 # docling
+torch # instead of getting all of docling, only get torch (for embeddings)
 # # rapidocr
 # langchain-text-splitters
 
