@@ -1,27 +1,52 @@
-# fastapi[standard]
-# uvicorn[standard]
-# httpx
+uvicorn[standard]
+fastapi[standard]
+httpx
 
-# python-dotenv
-# pydantic-settings
+python-dotenv
+pydantic-settings
 
-# sqlalchemy
-# asyncpg
-# alembic
+python-jose[cryptography]
 
-# kafka-python   # or confluent-kafka
-# redis
-# tenacity
+sqlalchemy
+asyncpg
+alembic
+greenlet
 
-# orjson
+openai[aiohttp]
 
-# grpcio
-# grpcio-tools
-# protobuf
+# ? specialized packages for vector db management, vector search and embeddings
+# ? handled in document-processor service 
+# qdrant-client[fastembed]
 
-# debugpy
+# docling
+# # rapidocr
+# langchain-text-splitters
 
-# -e ./packages/shared
-# -e ./packages/contracts
+argon2-cffi # for password hashing and verification
 
-# git+https://github.com/judeakinwale/rag_packages.git@main
+aiokafka # or confluent-kafka or kafka-python
+redis
+tenacity
+
+orjson
+
+grpcio
+grpcio-tools
+protobuf
+
+celery
+
+debugpy
+
+pytest
+pytest-asyncio
+
+azure-identity
+msgraph-sdk
+
+# -e ../../packages/shared
+# -e ../../packages/contracts
+# -e ../../
+
+git+https://github.com/judeakinwale/rag_packages.git@main
+
