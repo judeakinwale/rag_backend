@@ -1,6 +1,8 @@
 # DMS - RAG Project
 
-## Project Setup
+## Setting up the project
+
+---
 
 ### Frontend
 
@@ -169,7 +171,9 @@ in each service to match the host and port set for each service:
 
     - INGEST_SERVICE_ORIGIN
 
-## Project Run
+## Running the Project
+
+---
 
 1. Ensure Docker is running.
 
