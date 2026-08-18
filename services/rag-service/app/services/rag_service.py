@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import httpx
+import datetime
 import torch
 import torch.nn.functional as F
 
@@ -269,7 +270,7 @@ class RagService:
         self,
         query: str | list[str],
         limit: int = 5,
-        relevance_threshold: float = 0.8,
+        relevance_threshold: float = 0.8,  # 0.8 seems too strict
         min_query_length: int = 8,
     ) -> tuple[str, ChatMessageReferences | None]:
         default_return = "", None
@@ -300,12 +301,15 @@ class RagService:
         payloads: list[VectorDocumentResponse] = []
         for point in points:
             payload = self._get_point_payload(point)
-
+            print({"point_score": point.score})
             if (
                 point.score >= relevance_threshold
                 and payload.text
                 and len(payload.text.strip()) > min_query_length
             ):
+                del payload.details.tables
+                del payload.details.bbox
+                del payload.details.figures
                 payloads.append(payload)
 
         # # print({"points": points})
@@ -553,7 +557,7 @@ class RagService:
         rewritten_prompt = await self._rewrite_query(last_prompt, messages)
 
         document_context, references = await self._build_document_context(
-            rewritten_prompt, limit=10
+            rewritten_prompt, limit=40
         )
 
         updated_prompt = f"""
@@ -565,6 +569,13 @@ class RagService:
 ## Context
 -------
 
+### Very Important Date Context
+-------
+The current date and time is: {datetime.datetime.now(tz=datetime.UTC).isoformat()}.
+If asked about a month, day, or year, use the current date and time to provide an accurate answer.
+If no year is specified, use the current year, {datetime.datetime.now(tz=datetime.UTC).year}. 
+If no month is specified, use the current month, {datetime.datetime.now(tz=datetime.UTC).month}.
+
 ### Retrieved Knowledge
 -------
 
@@ -573,6 +584,13 @@ You should not reference retrieved documents in general terms, but instead use t
 If a specific answer is from one or more specific documents and you need to reference them, you should provide the document name and / or file URL in your answer.
 
 {document_context}
+
+### Closing Context
+-------
+
+Prefer newer information and always respect the date context specified above.
+Prefer structuring data as lists instead of tables, and avoid using tables unless necessary. 
+Be as brief and accurate as possible with a focus on the most salient information.
 """
 
         if messages:
