@@ -27,34 +27,34 @@ services:
       retries: 5
     networks: [backend, postgres]
 
-  pgadmin:
-    # see https://hub.docker.com/r/dpage/pgadmin4
-    image: dpage/pgadmin4:9.15 # To download the latest image
-    container_name: pgadmin
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-      # - pgadmin_config:/pgadmin4
-    env_file:
-      - .env
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    ports:
-      - "5433:80" # HOST_PORT:CONTAINER_PORT
-    networks: [backend, postgres]
+  # pgadmin:
+  #   # see https://hub.docker.com/r/dpage/pgadmin4
+  #   image: dpage/pgadmin4:9.15 # To download the latest image
+  #   container_name: pgadmin
+  #   volumes:
+  #     - pgadmin_data:/var/lib/pgadmin
+  #     # - pgadmin_config:/pgadmin4
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+  #     PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   ports:
+  #     - "5433:80" # HOST_PORT:CONTAINER_PORT
+  #   networks: [backend, postgres]
 
-  metabase:
-    # see https://hub.docker.com/r/metabase/metabase and https://www.metabase.com/docs/latest/installation-and-operation/running-metabase-on-docker
-    image: metabase/metabase:v0.62.1.x # To download the latest image
-    container_name: metabase
-    depends_on:
-      - postgres
-    ports:
-      - "5434:3000"
-    networks: [backend, postgres]
+  # metabase:
+  #   # see https://hub.docker.com/r/metabase/metabase and https://www.metabase.com/docs/latest/installation-and-operation/running-metabase-on-docker
+  #   image: metabase/metabase:v0.62.1.x # To download the latest image
+  #   container_name: metabase
+  #   depends_on:
+  #     - postgres
+  #   ports:
+  #     - "5434:3000"
+  #   networks: [backend, postgres]
 
 volumes:
   postgres_data:

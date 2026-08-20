@@ -19,6 +19,11 @@ from rag_packages.shared.kafka.producer import KafkaProducer
 setup_logging(logging.INFO)
 enable_package_logging(level=logging.INFO, formatter="json")
 
+# TODO: create a auth decorator to check for valid JWT token and validate it using MS Graph for now
+# TODO: create / update users using the details from MS Graph and store them in the database with their roles and scopes
+# TODO: extend this to create a custom auth middleware to validate JWT token and check for valid scopes and roles
+# TODO: move this to the api gateway service
+
 # # force custom package reinstall
 
 app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)

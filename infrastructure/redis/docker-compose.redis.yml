@@ -9,8 +9,8 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    environment:
-      - REDIS_ARGS=--requirepass ${REDIS_PASSWORD} --appendonly yes
+    # environment:
+    #   - REDIS_ARGS=--requirepass ${REDIS_PASSWORD} --appendonly yes
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
