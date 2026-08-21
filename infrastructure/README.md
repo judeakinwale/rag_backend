@@ -247,6 +247,12 @@ in each service to match the host and port set for each service:
 
 1. Ensure you are in the project root directory and have a terminal open at that directory
 
+1. Install the mkcert root certificate authority in your system trust store using
+
+    ```sh
+    mkcert -install
+    ```
+
 1. Navigate to the ./infrastructure/certs/ directory in the terminal
 
 1. Create a certificate for localhost and the services using
@@ -262,12 +268,6 @@ in each service to match the host and port set for each service:
     mv localhost+5-key.pem localhost-key.pem
     ```
 
-1. Install the root CA in your system trust store using
-
-    ```sh
-    mkcert -install
-    ```
-
 1. Get the directory of mkcert's root certificate authority using
 
     ```sh
@@ -280,7 +280,6 @@ in each service to match the host and port set for each service:
 
     ```sh
     cp $(mkcert --CAROOT)/rootCA.pem ./rootCA.pem
-    cp $(mkcert --CAROOT)/rootCA-key.pem ./rootCA-key.pem
     ```
 
 1. Return to the project root directory using
