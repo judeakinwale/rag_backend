@@ -5,6 +5,7 @@ from app.core.db import engine
 from app.core.redis import r
 from app.events.events import EVENTS
 from app.kafka_consumer import TOPICS, HANDLERS
+from app.utils.token_validation import EntraTokenValidator
 from rag_packages.shared.kafka.producer import KafkaProducer
 from rag_packages.shared.kafka.consumer import KafkaConsumer
 from rag_packages.shared.ai.openai import OpenAIService
@@ -67,6 +68,17 @@ async def lifespan(app: FastAPI):
         print(f"Error initializing QdrantService or DocumentProcessor service: {e}")
         app.state.qdrant_service = None
         # app.state.document_processor_service = None
+        raise
+        
+    try:
+        app.state.entra_validator = EntraTokenValidator(
+            tenant_id=settings.AZURE_TENANT_ID,
+            # audience=settings.ENTRA_AUDIENCE,
+        )
+    except Exception as e:
+        print(f"Error initializing EntraTokenValidator: {e}")
+        app.state.entra_validator = None
+        raise
 
     yield
 

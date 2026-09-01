@@ -1,32 +1,33 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, Request, status, Query
+
+from app.dependencies.auth import EntraUser, get_current_user
+from app.dependencies.chat import (
+    ChatProducer,
+    ChatService,
+    OpenAIService,
+    RagService,
+    get_chat_producer,
+    get_chat_service,
+    get_openai_service,
+    get_rag_service,
+)
+from fastapi import APIRouter, Depends, Query, Request, status
 from rag_packages.contracts.dto.chat import (
     AddPromptRequest,
-    ChatResponse,
     APIResponse,
     ChatAPIResponse,
-    CreateChatRequest,
-    UpdateChatRequest,
     ChatListAPIResponse,
+    ChatResponse,
+    CreateChatRequest,
     SimpleChat,
-)
-from app.dependencies.chat import (
-    get_chat_service,
-    get_chat_producer,
-    ChatService,
-    ChatProducer,
-    get_rag_service,
-    RagService,
-    get_openai_service,
-    OpenAIService,
+    UpdateChatRequest,
 )
 from rag_packages.shared.database.query import QueryParams
 from rag_packages.shared.exception.exception import BadRequestException
 
-
 router = APIRouter(prefix="/chats", tags=["Chats"])
 
-# TODO: replace chat service with rag service for create, update and prompt endpoints
+# TODO: ensure     current_user: EntraUser = Depends(get_current_user)      works for validating user from entra access token (jwt)
 
 
 @router.post(
@@ -85,6 +86,7 @@ async def create_chat(
     body: CreateChatRequest,
     service: ChatService = Depends(get_chat_service),
     rag_service: RagService = Depends(get_rag_service),
+    current_user: EntraUser = Depends(get_current_user),
     skip_processing: bool = Query(
         False, description="If true, skip processing the chat messages before creation"
     ),
@@ -150,6 +152,7 @@ async def update_chat_with_prompt(
     body: AddPromptRequest,
     chat_id: int | None = None,
     service: RagService = Depends(get_rag_service),
+    current_user: EntraUser = Depends(get_current_user),
 ) -> ChatAPIResponse:
     # ) -> APIResponse:
 
@@ -191,6 +194,7 @@ async def update_chat(
     body: UpdateChatRequest,
     rag_service: RagService = Depends(get_rag_service),
     service: ChatService = Depends(get_chat_service),
+    current_user: EntraUser = Depends(get_current_user),
     skip_processing: bool = Query(
         False, description="If true, skip processing the chat messages before creation"
     ),
