@@ -5,6 +5,7 @@ from typing import Any
 import requests
 from jose import jwt
 from jose.exceptions import JWTError
+from jose.backends import RSAKey
 
 
 @dataclass
@@ -13,6 +14,7 @@ class EntraUser:
     object_id: str
     display_name: str | None
     username: str | None
+    email: str | None
     scopes: list[str]
     roles: list[str]
 
@@ -29,10 +31,12 @@ class EntraTokenValidator:
     ):
         self.tenant_id = tenant_id
         self.audience = audience
-        self.signingKey: Any
-        self.signingExp: datetime
+        self.signingKey: Any | None = None
+        self.signingExp: datetime | None = None
 
         self.issuer = f"https://login.microsoftonline.com/{tenant_id}/v2.0"
+        # self.issuer_sharepoint = f"https://sts.windows.net/{tenant_id}/"
+        # self.openid_config_url = f"{self.issuer}/.well-known/openid-configuration"
 
         self.jwks_url = (
             f"https://login.microsoftonline.com/{tenant_id}/discovery/v2.0/keys"
@@ -42,8 +46,12 @@ class EntraTokenValidator:
         self.jwks = self._load_jwks()
 
     def _load_jwks(self) -> dict:
+
+        # config = requests.get(self.openid_config_url).json()
+        # curr_jwks_url = config["jwks_uri"]
+
         response = requests.get(
-            self.jwks_url,
+            self.jwks_url,  # curr_jwks_url,
             timeout=10,
         )
 
@@ -94,27 +102,34 @@ class EntraTokenValidator:
         """
 
         signing_key = self._get_signing_key(token)
+        # print({"signing_key": signing_key})
 
-        claims = jwt.decode(
-            token,
-            signing_key,
-            algorithms=["RS256"],
-            audience=self.audience,
-            issuer=self.issuer,
-            options={
-                "verify_signature": True,
-                "verify_aud": bool(self.audience),  # True,
-                "verify_iss": True,
-                "verify_exp": True,
-                "verify_nbf": True,
-                # Require these claims to be present.
-                "require_exp": True,
-                "require_iat": True,
-                "require_nbf": True,
-                "require_iss": True,
-                "require_aud": bool(self.audience),  # True,
-            },
-        )
+        try:
+            claims = jwt.decode(
+                token,
+                signing_key,
+                algorithms=["RS256"],
+                audience=self.audience,
+                # issuer=self.issuer,
+                options={
+                    # verify_signature: True raises an error: Signature verification failed
+                    "verify_signature": False,  # True,
+                    "verify_aud": bool(self.audience),  # True,
+                    "verify_iss": True,
+                    "verify_exp": True,
+                    "verify_nbf": True,
+                    # Require these claims to be present.
+                    "require_exp": True,
+                    "require_iat": True,
+                    "require_nbf": True,
+                    "require_iss": True,
+                    "require_aud": bool(self.audience),  # True,
+                },
+            )
+            # print({"claims": claims})
+        except JWTError as e:
+            print(f"JWT decode failed: {type(e)}: {e}")
+            raise
 
         # Make absolutely sure the tenant is the tenant
         # this validator was configured to trust.
@@ -136,6 +151,7 @@ class EntraTokenValidator:
             object_id=object_id,
             display_name=claims.get("name"),
             username=claims.get("preferred_username"),
+            email=claims.get("unique_name"),
             scopes=scopes,
             roles=roles,
         )

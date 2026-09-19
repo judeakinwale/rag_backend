@@ -25,7 +25,7 @@ def decode_jwt_token(token: str) -> dict:
 # TODO: confirm this works with the EntraTokenValidator and the EntraUser model
 def validate_jwt_token(
     request: Request, token: str, provider: AuthProvider = AuthProvider.AZURE_ENTRA
-) -> dict | False:
+) -> dict | bool:
     if not token or provider is None:
         return False
 
