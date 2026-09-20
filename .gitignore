@@ -9,7 +9,7 @@ wheels/
 .DS_Store
 
 # Alembic migrations
-alembic/versions/
+**/alembic/versions/
 
 # Currently excluded wip infrastructure
 infrastructure/alembic/
