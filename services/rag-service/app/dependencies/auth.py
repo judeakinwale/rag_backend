@@ -2,6 +2,7 @@ from enum import StrEnum
 from typing import Annotated
 
 from app.utils.token_validation import EntraTokenValidator, EntraUser
+from app.core.config import settings
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPBearer
 from jose import jwt
@@ -46,6 +47,17 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="Missing credentials")
 
     token = credentials.credentials
+
+    if token == settings.OVERRIDE_TOKEN:
+        return EntraUser(
+            email=settings.PLACEHOLDER_ADMIN_EMAIL,
+            display_name="Admin",
+            roles=["admin"],
+            username="admin",
+            tenant_id="admin",
+            object_id="admin",
+            scopes=["admin"],
+        )
 
     # Here you would typically decode the JWT token and extract user information
     # For demonstration purposes, we'll just return a dummy user

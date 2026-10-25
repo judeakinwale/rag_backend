@@ -41,6 +41,7 @@ router = APIRouter(prefix="/chats", tags=["Chats"])
 async def test_chat(
     body: SimpleChat,
     service: OpenAIService = Depends(get_openai_service),
+    current_user: EntraUser = Depends(get_current_user),
 ) -> SimpleChat:
     response = await service.create_response(body.prompt)
     response_text = response.output_text
@@ -63,6 +64,7 @@ async def get_chats(
     query: Annotated[QueryParams, Query()],
     service: ChatService = Depends(get_chat_service),
     producer: ChatProducer = Depends(get_chat_producer),
+    current_user: EntraUser = Depends(get_current_user),
 ) -> ChatListAPIResponse:
     chats, count = await service.get_chats(query)
 
@@ -126,6 +128,7 @@ async def get_chat(
     #         get_chat_service,
     #     ),
     # ],
+    current_user: EntraUser = Depends(get_current_user),
 ) -> ChatAPIResponse:
     chat = await service.get_chat_by_id(chat_id)
 
@@ -227,11 +230,13 @@ async def update_chat(
 async def delete_chat(
     chat_id: int,
     service: ChatService = Depends(get_chat_service),
+    current_user: EntraUser = Depends(get_current_user),
 ) -> ChatAPIResponse:
-    deleted_chat = await service.delete_chat(chat_id)
+    # deleted_chat = await service.delete_chat(chat_id)
 
     return ChatAPIResponse(
         success=True,
-        data=deleted_chat,
-        message=f"Chat with ID {chat_id} has been deleted.",
+        # data=deleted_chat,
+        # message=f"Chat with ID {chat_id} has been deleted.",
+        message="Chat deletion not allowed.",
     )

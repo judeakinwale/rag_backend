@@ -4,6 +4,7 @@ import httpx
 import datetime
 import torch
 import torch.nn.functional as F
+from qdrant_client.http.models import ExtendedPointId
 
 # from fastembed import TextEmbedding
 from rag_packages.shared.processing.qdrant import QdrantService, ScoredPoint
@@ -39,6 +40,10 @@ from app.services.chat_service import ChatService, Chat
 from app.services.prompt_builder_service import PromptBuilder
 from app.utils.skip_words import general_skip_list
 from rag_packages.shared.utils.format import dicts_to_markdown
+from app.utils.query_rewrite_instructions import (
+    generate_rewrite_instructions,
+    parse_rewritten_user_query,
+)
 
 # from app.repositories.chat_repository import ChatRepository
 
@@ -54,14 +59,14 @@ logger = logging.getLogger(__name__)
 
 
 class RagService:
-    _rewrite_instructions = (
-        "You are a helpful assistant that rewrites user queries to be more specific and relevant "
-        "based on the previous conversation context. "
-        "You should use the previous conversation to understand the user's intent and provide a "
-        "rewritten query that is clear, concise, and focused on the user's needs. "
-        "Do not add any additional information or context that is not present in the previous conversation. "
-        "If the previous conversation does not provide enough context, return the original query without changes."
-    )
+    # _rewrite_instructions = (
+    #     "You are a helpful assistant that rewrites user queries to be more specific and relevant "
+    #     "based on the previous conversation context. "
+    #     "You should use the previous conversation to understand the user's intent and provide a "
+    #     "rewritten query that is clear, concise, and focused on the user's needs. "
+    #     "Do not add any additional information or context that is not present in the previous conversation. "
+    #     "If the previous conversation does not provide enough context, return the original query without changes."
+    # )
 
     def __init__(
         self,
@@ -137,12 +142,18 @@ class RagService:
             for message in prev_conversation
         ]
 
+        rewrite_instructions = generate_rewrite_instructions(query)
+        print(f"rewrite_instructions: {rewrite_instructions}")
+
         response: Response = await self.openai_service.create_response(
             prompt=query,
-            instructions=self._rewrite_instructions,
+            instructions=rewrite_instructions,
+            # instructions=self._rewrite_instructions,
             prev_conversation=valid_prev_conversation,
         )
         rewritten_query = response.output_text
+        print(f"rewritten_query: {rewritten_query}")
+
         return rewritten_query
 
     def _get_last_prompt(self, messages: list[ChatMessage]) -> str:
@@ -272,6 +283,7 @@ class RagService:
         limit: int = 5,
         relevance_threshold: float = 0.8,  # 0.8 seems too strict
         min_query_length: int = 8,
+        processed_point_ids: list[ExtendedPointId] | None = None,
     ) -> tuple[str, ChatMessageReferences | None]:
         default_return = "", None
 
@@ -300,6 +312,11 @@ class RagService:
 
         payloads: list[VectorDocumentResponse] = []
         for point in points:
+            if processed_point_ids:
+                if point.id in processed_point_ids:
+                    continue
+                processed_point_ids.append(point.id)
+
             payload = self._get_point_payload(point)
             print({"point_score": point.score})
             if (
@@ -554,15 +571,47 @@ class RagService:
         messages = messages or []
         messages_copy: list[ChatMessage] = []
 
-        rewritten_prompt = await self._rewrite_query(last_prompt, messages)
+        should_rewrite = True
+        rewritten_prompt = await self._rewrite_query(
+            last_prompt, messages, should_rewrite
+        )
 
-        document_context, references = await self._build_document_context(
-            rewritten_prompt, limit=40
+        document_context = ""
+        references = ChatMessageReferences(
+            vector_documents=[],
+            documents=[],
+        )
+        processed_point_ids: list[ExtendedPointId] = []
+
+        if should_rewrite:
+            partial_context = ""
+            prompt_queries = parse_rewritten_user_query(rewritten_prompt).queries
+
+            for _query in prompt_queries:
+                _query_context, _query_references = await self._build_document_context(
+                    _query, limit=40, processed_point_ids=processed_point_ids
+                )
+                partial_context = f"{partial_context}\n{_query_context}\n"
+                references.vector_documents.extend(_query_references.vector_documents)
+                references.documents.extend(_query_references.documents)
+
+            document_context = partial_context
+
+        else:
+            document_context, references = await self._build_document_context(
+                rewritten_prompt, limit=40, processed_point_ids=processed_point_ids
+            )
+
+        print(
+            f"document_context: {document_context}, \nshould_rewrite: {should_rewrite}, \nprocessed_point_ids: {processed_point_ids}"
         )
 
         updated_prompt = f"""
 ## User Question
 
+{prompt}
+
+## Rewritten Prompt
 -------
 {rewritten_prompt}
 
