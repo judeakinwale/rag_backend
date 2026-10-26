@@ -1,0 +1,216 @@
+# version: "3.9"
+
+networks:
+  backend:
+
+include:
+  - ./infrastructure/postgres/docker-compose.postgres.yml
+  - ./infrastructure/kafka/docker-compose.kafka.yml
+  - ./infrastructure/redis/docker-compose.redis.yml
+  - ./infrastructure/qdrant/docker-compose.qdrant.yml
+
+x-debug-command: &debug-command
+  # command: >
+  #   python -m debugpy --listen 0.0.0.0:5678
+  #   -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+  command: >
+    python -m uvicorn app.main:app 
+    --host 0.0.0.0 --port 8000 --reload
+
+services:
+  # auth-service:
+  #   build: ./services/auth-service
+  #   ports: ["${AUTH_EXTERNAL_PORT}:8000", "5678:5678"]
+  #   volumes:
+  #     - ./services/auth-service:/app
+  #     # for https certs (using mkcert localhost for local development)
+  #     - ${CERT_DIR}:/certs
+  #   env_file:
+  #     - .env
+  #     - ./services/auth-service/.env
+  #   environment:
+  #     WATCHFILES_FORCE_POLLING: "true"
+  #   command: >
+  #     python -m uvicorn app.main:app
+  #     --host 0.0.0.0 --port 8000 --reload
+  #     --ssl-keyfile /certs/${SHARED_SSL_KEY_FILE}
+  #     --ssl-certfile /certs/${SHARED_SSL_CERT_FILE}
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     postgres:
+  #       condition: service_healthy
+
+  #   networks: [backend]
+
+  user-service:
+    build: ./services/user-service
+    ports: ["${USER_EXTERNAL_PORT}:8000", "5679:5678"]
+    volumes:
+      - ./services/user-service:/app
+      - ${CERT_DIR}:/certs
+    env_file:
+      - .env
+      - ./services/user-service/.env
+    environment:
+      WATCHFILES_FORCE_POLLING: "true"
+    command: >
+      python -m uvicorn app.main:app 
+      --host 0.0.0.0 --port 8000 --reload
+      --ssl-keyfile /certs/${SHARED_SSL_KEY_FILE} 
+      --ssl-certfile /certs/${SHARED_SSL_CERT_FILE}
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+    networks: [backend]
+
+  rag-service:
+    build: ./services/rag-service
+    ports: ["${RAG_EXTERNAL_PORT}:8000", "5680:5678"]
+    volumes:
+      - ./services/rag-service:/app
+      - ${CERT_DIR}:/certs
+    env_file:
+      - .env
+      - ./services/rag-service/.env
+    environment:
+      QDRANT_ADDR: qdrant:6334
+      WATCHFILES_FORCE_POLLING: "true"
+      # these are commented out for PROD -- the vm uses http:// and port 80
+      # --ssl-keyfile /certs/${SHARED_SSL_KEY_FILE} 
+      # --ssl-certfile /certs/${SHARED_SSL_CERT_FILE}    
+    command: >
+      python -m uvicorn app.main:app
+      --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+
+    networks: [backend]
+
+  ingest-service:
+    build: ./services/ingest-service
+    ports: ["${INGEST_EXTERNAL_PORT}:8000", "5681:5678"]
+    volumes:
+      - ./services/ingest-service:/app
+      - ${CERT_DIR}:/certs
+    env_file:
+      - .env
+      - ./services/ingest-service/.env
+    environment:
+      QDRANT_ADDR: qdrant:6334
+      WATCHFILES_FORCE_POLLING: "true"
+    command: >
+      python -m uvicorn app.main:app
+      --host 0.0.0.0 --port 8000 --reload
+      --ssl-keyfile /certs/${SHARED_SSL_KEY_FILE} 
+      --ssl-certfile /certs/${SHARED_SSL_CERT_FILE}
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+
+    networks: [backend]
+
+  document-processor-service:
+    build: ./services/document-processor-service
+    ports: ["${DOCUMENT_PROCESSOR_EXTERNAL_PORT}:8000", "5683:5678"]
+    volumes:
+      - ./services/document-processor-service:/app
+      - ${CERT_DIR}:/certs
+    env_file:
+      - .env
+      - ./services/document-processor-service/.env
+    environment:
+      QDRANT_ADDR: qdrant:6334
+      WATCHFILES_FORCE_POLLING: "true"
+    command: >
+      python -m uvicorn app.main:app
+      --host 0.0.0.0 --port 8000 --reload
+      --ssl-keyfile /certs/${SHARED_SSL_KEY_FILE} 
+      --ssl-certfile /certs/${SHARED_SSL_CERT_FILE}
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+
+    networks: [backend]
+
+  # notification-service:
+  #   build: ./services/notification-service
+  #   ports: ["${NOTIFICATION_EXTERNAL_PORT}:8000", "5683:5678"]
+  #   volumes:
+  #     - ./services/notification-service:/app
+  #     - ${CERT_DIR}:/certs
+  #   env_file:
+  #     - .env
+  #     - ./services/notification-service/.env
+  #   environment:
+  #     WATCHFILES_FORCE_POLLING: "true"
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     postgres:
+  #       condition: service_healthy
+
+  #   networks: [backend]
+
+  # audit-service:
+  #   build: ./services/audit-service
+  #   ports: ["${AUDIT_EXTERNAL_PORT}:8000", "5684:5678"]
+  #   volumes:
+  #     - ./services/audit-service:/app
+  #     - ${CERT_DIR}:/certs
+  #   env_file:
+  #     - .env
+  #     - ./services/audit-service/.env
+  #   environment:
+  #     WATCHFILES_FORCE_POLLING: "true"
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     postgres:
+  #       condition: service_healthy
+
+  #   networks: [backend]
+
+  # api-gateway:
+  #   build: ./services/api-gateway
+  #   ports: ["${API_GATEWAY_EXTERNAL_PORT}:8000"]
+  #   volumes:
+  #     - ./services/api-gateway:/app
+  #     - ${CERT_DIR}:/certs
+  #   env_file:
+  #     - .env
+  #     - ./services/api-gateway/.env
+  #   environment:
+  #     WATCHFILES_FORCE_POLLING: "true"
+  #   depends_on: [auth-service, user-service, rag-service, ingest-service]
+  #   networks: [backend]
