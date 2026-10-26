@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str | None = "HS256"
     JWT_TOKEN_URL: str | None = "/api/v1/auth/token"
     JWT_TOKEN_EXPIRES_IN: int | None = 3600 * 24  # in seconds, default is one day
-    
+
     OVERRIDE_TOKEN: str | None
     PLACEHOLDER_ADMIN_EMAIL: str | None
 

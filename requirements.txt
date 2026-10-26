@@ -7,7 +7,7 @@ pydantic-settings
 
 python-jose[cryptography]
 
-sqlalchemy
+sqlalchemy[asyncio]
 asyncpg
 alembic
 greenlet

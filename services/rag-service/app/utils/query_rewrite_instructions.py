@@ -3,7 +3,7 @@ from pydantic import Field
 
 
 class RewrittenQuery(BaseDTO):
-    queries: list[int] | None = Field(default_factory=list)
+    queries: list[str] | None = Field(default_factory=list)
     fromDate: str
     toDate: str
 
@@ -46,11 +46,11 @@ Use the current date as the reference point for resolving relative dates. Interp
 
 10. **Specific dates and date ranges:** When the user provides exact dates, use the specified dates. When only a start or end date is provided, infer the other boundary only if the intended period is clear; otherwise, use `null` for the uncertain field.
 
-11. **Year-to-date:** For requests such as "this year so far" or "year to date", set `from` to January 1 of the current year and `to` to the current date and time.
+11. **Year-to-date:** For requests such as "this year so far" or "year to date", set `fromDate` to January 1 of the current year and `toDate` to the current date and time.
 
-12. **Month-to-date:** For requests such as "this month so far", set `from` to the first day of the current month and `to` to the current date and time.
+12. **Month-to-date:** For requests such as "this month so far", set `fromDate` to the first day of the current month and `toDate` to the current date and time.
 
-13. **No date specified:** If the user does not specify or imply a time period, set both `from` and `to` to `null`. Do not assume a date range based solely on the current date.
+13. **No date specified:** If the user does not specify or imply a time period, set both `fromDate` and `toDate` to `null`. Do not assume a date range based solely on the current date.
 
 14. **Ambiguous dates:** If a date or date range cannot be reliably determined, use `null` for the uncertain field rather than inventing dates.
 
@@ -62,12 +62,12 @@ Use the current date as the reference point for resolving relative dates. Interp
 4. For month-based requests, include the relevant month and year in some queries.
 5. Do not include individual day numbers or exact date ranges in the query strings unless the user explicitly asks to search for a specific date.
 6. Avoid redundant queries, unrelated concepts, and unnecessary variations that do not improve semantic retrieval.
-7. Do not put the date filters themselves into the `queries` array as structured data. The `from` and `to` fields handle date filtering separately.
+7. Do not put the date filters themselves into the `queries` array as structured data. The `fromDate` and `toDate` fields handle date filtering separately.
 
 ### Output requirements
 
 1. Return only a raw JSON object. Do not include Markdown code fences, explanations, comments, or any other text.
-2. The JSON object must contain exactly the keys `"queries"`, `"from"`, and `"to"`.
+2. The JSON object must contain exactly the keys `"queries"`, `"fromDate"`, and `"toDate"`.
 3. Use double quotes for all JSON keys and string values.
 4. Ensure the response is valid JSON that can be parsed immediately using `JSON.parse()`.
 5. Do not include trailing commas, additional keys, or text outside the JSON object.
@@ -79,8 +79,8 @@ Assume the current date is October 23, 2026, and the user asks: "Can you give me
 
 Return exactly:
 
-{
-        "queries": [
+{{
+  "queries": [
     "electricity invoices from last month",
     "electricity bills for September 2026",
     "electricity utility invoices issued in September 2026",
@@ -90,7 +90,7 @@ Return exactly:
   ],
   "fromDate": "2026-09-01T00:00:00.000Z",
   "toDate": "2026-09-30T23:59:59.999Z"
-}
+}}
 
 User request: {user_query}
 

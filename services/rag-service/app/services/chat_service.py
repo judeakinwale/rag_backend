@@ -14,6 +14,7 @@ from pydantic import TypeAdapter
 from rag_packages.contracts.dto.chat import (
     ChatMessage,
     ChatResponse,
+    ChatMessageReferences,
     CreateChatRequest,
     UpdateChatRequest,
 )
@@ -28,6 +29,7 @@ from rag_packages.contracts.dto.vector_document import (
     VectorDocumentResponse,
     VectorDocumentResponseJSON,
 )
+from rag_packages.contracts.types.shared_types import BoolStr
 from rag_packages.shared.database.query import QueryParams
 from rag_packages.shared.database.uow import UnitOfWork
 from rag_packages.shared.exception.exception import NotFoundException
@@ -171,10 +173,32 @@ class ChatService:
             f"all:{params.model_dump_json()}" if params else "all"
         )
         cached = await r.get(cache_key)
+        print(f"cached: {cached}")
+
+        def cleanChatResponse(
+            chat_response: ChatResponse, show_references: BoolStr = BoolStr.FALSE
+        ) -> ChatResponse:
+            print(f"show_references: {show_references}")
+            # return the exact data received from the db; this has references which are rather large
+            if show_references == BoolStr.TRUE:
+                return chat_response
+
+            for message in chat_response.messages:
+                message.references = ChatMessageReferences(
+                    document_chunks=[], vector_documents=[], documents=[]
+                )
+
+            return chat_response
 
         if cached is not None:
             try:
                 chats, count = orjson.loads(cached)
+                # return [
+                #     cleanChatResponse(
+                #         ChatResponse.model_validate(chat), params.show_references
+                #     )
+                #     for chat in chats
+                # ], count
                 return [ChatResponse.model_validate(chat) for chat in chats], count
 
             except orjson.JSONDecodeError:
@@ -184,7 +208,11 @@ class ChatService:
                 await r.delete(cache_key)  # invalidate corrupted cache
 
         chats, count = await self.repo.get_all(params)
-        valid_chats = [ChatResponse.model_validate(chat) for chat in chats]
+        valid_chats = [
+            cleanChatResponse(ChatResponse.model_validate(chat), params.show_references)
+            for chat in chats
+        ]
+        # valid_chats = [ChatResponse.model_validate(chat) for chat in chats]
 
         json_str = self._response_adapter.dump_json((valid_chats, count)).decode()
         await r.set(cache_key, json_str)

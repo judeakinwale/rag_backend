@@ -143,15 +143,21 @@ class RagService:
         ]
 
         rewrite_instructions = generate_rewrite_instructions(query)
-        print(f"rewrite_instructions: {rewrite_instructions}")
+        # print(f"rewrite_instructions: {rewrite_instructions}")
 
+        # TODO: add the previous conversation as part of the instructions as sending it directly breaks the code
         response: Response = await self.openai_service.create_response(
-            prompt=query,
-            instructions=rewrite_instructions,
+            prompt=rewrite_instructions,
+            # prompt=query,
+            # instructions=rewrite_instructions,
             # instructions=self._rewrite_instructions,
-            prev_conversation=valid_prev_conversation,
+            # prev_conversation=valid_prev_conversation or [],
         )
-        rewritten_query = response.output_text
+        print(f"response: {response}")
+
+        # rewritten_query = response.output_text
+
+        rewritten_query = self._get_response_text(response)
         print(f"rewritten_query: {rewritten_query}")
 
         return rewritten_query
@@ -571,6 +577,8 @@ class RagService:
         messages = messages or []
         messages_copy: list[ChatMessage] = []
 
+        print(f"last_prompt: {last_prompt}, messages: {messages}")
+
         should_rewrite = True
         rewritten_prompt = await self._rewrite_query(
             last_prompt, messages, should_rewrite
@@ -589,7 +597,7 @@ class RagService:
 
             for _query in prompt_queries:
                 _query_context, _query_references = await self._build_document_context(
-                    _query, limit=40, processed_point_ids=processed_point_ids
+                    _query, limit=12, processed_point_ids=processed_point_ids
                 )
                 partial_context = f"{partial_context}\n{_query_context}\n"
                 references.vector_documents.extend(_query_references.vector_documents)
