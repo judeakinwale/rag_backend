@@ -287,7 +287,7 @@ class RagService:
         self,
         query: str | list[str],
         limit: int = 5,
-        relevance_threshold: float = 0.8,  # 0.8 seems too strict
+        relevance_threshold: float = 0.75,  # 0.8 seems too strict
         min_query_length: int = 8,
         processed_point_ids: list[ExtendedPointId] | None = None,
     ) -> tuple[str, ChatMessageReferences | None]:
