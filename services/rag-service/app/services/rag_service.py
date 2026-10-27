@@ -588,6 +588,7 @@ class RagService:
         references = ChatMessageReferences(
             vector_documents=[],
             documents=[],
+            document_chunks=[],
         )
         processed_point_ids: list[ExtendedPointId] = []
 
@@ -600,8 +601,26 @@ class RagService:
                     _query, limit=12, processed_point_ids=processed_point_ids
                 )
                 partial_context = f"{partial_context}\n{_query_context}\n"
-                references.vector_documents.extend(_query_references.vector_documents)
-                references.documents.extend(_query_references.documents)
+                # -----
+                if (
+                    _query_references is not None
+                    and len(_query_references.vector_documents) > 0
+                ):
+                    references.vector_documents.extend(
+                        _query_references.vector_documents
+                    )
+                # -----
+                if (
+                    _query_references is not None
+                    and len(_query_references.documents) > 0
+                ):
+                    references.documents.extend(_query_references.documents)
+                # -----
+                if (
+                    _query_references is not None
+                    and len(_query_references.document_chunks) > 0
+                ):
+                    references.document_chunks.extend(_query_references.document_chunks)
 
             document_context = partial_context
 
