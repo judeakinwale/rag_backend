@@ -4,8 +4,8 @@ from pydantic import Field
 
 class RewrittenQuery(BaseDTO):
     queries: list[str] | None = Field(default_factory=list)
-    fromDate: str
-    toDate: str
+    fromDate: str | None = None
+    toDate: str | None = None
 
 
 def parse_rewritten_user_query(rewritten_query: str) -> RewrittenQuery:
