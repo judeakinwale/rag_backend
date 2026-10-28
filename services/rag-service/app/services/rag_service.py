@@ -242,7 +242,7 @@ class RagService:
         return documents
 
     async def _get_matching_vector_documents(
-        self, query: str | list[str], limit: int = 5
+        self, query: str | list[str], limit: int = 100
     ) -> list[ScoredPoint]:
         """
         Retrieve the limit most relevant documents from the vector database based on the query.
@@ -286,9 +286,9 @@ class RagService:
     async def _build_document_context(
         self,
         query: str | list[str],
-        limit: int = 5,
-        relevance_threshold: float = 0.75,  # 0.8 seems too strict
-        min_query_length: int = 8,
+        limit: int = 100,
+        relevance_threshold: float = 0.70,  # 0.8 seems too strict
+        min_query_length: int = 4,
         processed_point_ids: list[ExtendedPointId] | None = None,
     ) -> tuple[str, ChatMessageReferences | None]:
         default_return = "", None
@@ -598,7 +598,7 @@ class RagService:
 
             for _query in prompt_queries:
                 _query_context, _query_references = await self._build_document_context(
-                    _query, limit=12, processed_point_ids=processed_point_ids
+                    _query, limit=100, processed_point_ids=processed_point_ids
                 )
                 partial_context = f"{partial_context}\n{_query_context}\n"
                 # -----
@@ -626,7 +626,7 @@ class RagService:
 
         else:
             document_context, references = await self._build_document_context(
-                rewritten_prompt, limit=40, processed_point_ids=processed_point_ids
+                rewritten_prompt, limit=200, processed_point_ids=processed_point_ids
             )
 
         print(
@@ -644,6 +644,12 @@ class RagService:
 
 ## Context
 -------
+
+### Very Important File Instructions
+-------
+If there are files that are somewhat relevant to the user's question, reference them and ensure to add the links for each of them.
+Sort these files from the newest to the oldest.
+If there are tens of somewhat relevant files their links can be embedded as markdown links of the form [{{file name}}]({{file url}}).
 
 ### Very Important Date Context
 -------
@@ -899,7 +905,8 @@ Be as brief and accurate as possible with a focus on the most salient informatio
             prepared_payload = await self._prepare_create_payload(payload)
 
         created_chat = await self.chat_service.create_chat(prepared_payload)
-        return created_chat
+        return ChatService.cleanChatResponse(created_chat)
+        # return created_chat
 
     async def _get_chat(
         self, chat_id: int | None = None, session_id: str | None = None
@@ -941,7 +948,8 @@ Be as brief and accurate as possible with a focus on the most salient informatio
         updated_chat = await self.chat_service.update_chat(
             existing_chat.id, prepared_payload
         )
-        return updated_chat
+        return ChatService.cleanChatResponse(updated_chat)
+        # return updated_chat
 
     async def update_chat_with_prompt(
         self,
@@ -968,4 +976,5 @@ Be as brief and accurate as possible with a focus on the most salient informatio
         else:
             updated_chat = ChatResponse.model_validate(existing_chat)
 
+        updated_chat = ChatService.cleanChatResponse(updated_chat)
         return updated_chat, references

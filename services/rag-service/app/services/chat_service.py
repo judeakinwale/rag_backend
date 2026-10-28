@@ -144,6 +144,22 @@ class ChatService:
 
         return norm_vector_doc
 
+    @staticmethod
+    def cleanChatResponse(
+        chat_response: ChatResponse, show_references: BoolStr = BoolStr.FALSE
+    ) -> ChatResponse:
+        print(f"show_references: {show_references}")
+        # return the exact data received from the db; this has references which are rather large
+        if show_references == BoolStr.TRUE:
+            return chat_response
+
+        for message in chat_response.messages:
+            message.references = ChatMessageReferences(
+                document_chunks=[], vector_documents=[], documents=[]
+            )
+
+        return chat_response
+
     def _normalize_chat_message_datetimes(self, message: ChatMessage) -> ChatMessage:
         message.timestamp = normalize_datetime_to_timestamp_ms(message.timestamp)
 
@@ -175,21 +191,6 @@ class ChatService:
         cached = await r.get(cache_key)
         print(f"cached: {cached}")
 
-        def cleanChatResponse(
-            chat_response: ChatResponse, show_references: BoolStr = BoolStr.FALSE
-        ) -> ChatResponse:
-            print(f"show_references: {show_references}")
-            # return the exact data received from the db; this has references which are rather large
-            if show_references == BoolStr.TRUE:
-                return chat_response
-
-            for message in chat_response.messages:
-                message.references = ChatMessageReferences(
-                    document_chunks=[], vector_documents=[], documents=[]
-                )
-
-            return chat_response
-
         if cached is not None:
             try:
                 chats, count = orjson.loads(cached)
@@ -209,7 +210,9 @@ class ChatService:
 
         chats, count = await self.repo.get_all(params)
         valid_chats = [
-            cleanChatResponse(ChatResponse.model_validate(chat), params.show_references)
+            ChatService.cleanChatResponse(
+                ChatResponse.model_validate(chat), params.show_references
+            )
             for chat in chats
         ]
         # valid_chats = [ChatResponse.model_validate(chat) for chat in chats]
