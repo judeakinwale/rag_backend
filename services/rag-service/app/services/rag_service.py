@@ -672,7 +672,7 @@ If a specific answer is from one or more specific documents and you need to refe
 
 Prefer newer information and always respect the date context specified above.
 Prefer structuring data as lists instead of tables, and avoid using tables unless necessary. 
-Be as brief and accurate as possible with a focus on the most salient information.
+Be as detailed and accurate as possible with a focus on the most salient information.
 """
 
         if messages:
