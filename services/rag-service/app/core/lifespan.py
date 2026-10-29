@@ -43,6 +43,8 @@ async def lifespan(app: FastAPI):
     try:
         app.state.openai_service = OpenAIService(
             api_key=settings.OPENAI_API_KEY,
+            model=settings.OPENAI_MODEL_NAME,
+            realtime_model=settings.OPENAI_REALTIME_MODEL_NAME,
             webhook_secret=settings.OPENAI_WEBHOOK_SECRET,
         )
     except Exception as e:
@@ -69,7 +71,7 @@ async def lifespan(app: FastAPI):
         app.state.qdrant_service = None
         # app.state.document_processor_service = None
         raise
-        
+
     try:
         app.state.entra_validator = EntraTokenValidator(
             tenant_id=settings.AZURE_TENANT_ID,
