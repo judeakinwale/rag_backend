@@ -47,6 +47,7 @@ from app.utils.query_rewrite_instructions import (
 
 # from app.repositories.chat_repository import ChatRepository
 
+# force rebuild
 
 logger = logging.getLogger(__name__)
 
