@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str
 
     OPENAI_API_KEY: str
-    OPENAI_MODEL_NAME: str = "gpt-5.6-sol"
+    OPENAI_MODEL_NAME: str = "gpt-6-luna"
     OPENAI_REALTIME_MODEL_NAME: str | None = None
     OPENAI_WEBHOOK_SECRET: str | None = None
 
