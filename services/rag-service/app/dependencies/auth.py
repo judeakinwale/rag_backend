@@ -40,6 +40,7 @@ def validate_jwt_token(
     return False
 
 
+# Depends(get_current_user)  works for validating user from entra access token (jwt)
 def get_current_user(
     request: Request, credentials: Annotated[HTTPBearer, Depends(security)]
 ) -> dict:

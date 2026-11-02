@@ -154,9 +154,10 @@ class ChatService:
             return chat_response
 
         for message in chat_response.messages:
-            message.references = ChatMessageReferences(
-                document_chunks=[], vector_documents=[], documents=[]
-            )
+            message.references = None
+            # message.references = ChatMessageReferences(
+            #     document_chunks=[], vector_documents=[], documents=[]
+            # )
 
         return chat_response
 

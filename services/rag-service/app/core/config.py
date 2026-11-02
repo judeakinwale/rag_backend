@@ -1,5 +1,6 @@
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Literal
 
 # project's base directory
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -52,10 +53,17 @@ class Settings(BaseSettings):
     SHAREPOINT_SITE_URL: str | None = "https://klafgo6.sharepoint.com/"
     SHAREPOINT_LIBRARY_IDS: list[str] | None = None
 
-    # Entra Id Sharepoint Configuration
+    # ----- Entra Id Sharepoint Configuration
     AZURE_TENANT_ID: str
     AZURE_CLIENT_ID: str
     AZURE_CLIENT_SECRET: str
+
+    # TODO: manage this across the multiple services using redis
+    # ----- feature flags
+    flag_environment: Literal["PROD", "DEV", "TEST"] = "DEV"
+    flag_process_messages: bool = False
+    flag_generate_assistant_message: bool = True
+    flag_save_to_db: bool = False
 
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",  # ".env"

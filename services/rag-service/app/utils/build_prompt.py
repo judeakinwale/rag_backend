@@ -1,3 +1,4 @@
+import datetime
 from rag_packages.contracts.dto.shared_dto import BaseDTO
 from pydantic import Field
 
@@ -9,10 +10,58 @@ class RewrittenQuery(BaseDTO):
 
 
 def parse_rewritten_user_query(rewritten_query: str) -> RewrittenQuery:
+    # TODO: remove this so the argument above is used
+    rewritten_query = '{"queries":["electricity bills","electricity invoices","electric utility billing statements","power supply bills","electricity charges and billing records","electricity consumption statements"],"fromDate":null,"toDate":null}'
+
     return RewrittenQuery.model_validate_json(rewritten_query)
 
 
-def generate_rewrite_instructions(user_query: str) -> str:
+# build prompt to be sent to the assistant with document context and related instructions
+def build_prompt_with_context(
+    prompt: str, document_context: str, rewritten_prompt: str | None = None
+) -> str:
+    user_prompt_snippet = f"## User Question\n\n{prompt}\n"
+    rewritten_prompt_snippet = f"### Rewritten Prompt\n\n{rewritten_prompt}\n"
+
+    updated_prompt = f"""
+{user_prompt_snippet if prompt else ""}
+{rewritten_prompt_snippet if rewritten_prompt else ""}
+## Context
+
+### Very Important
+
+---
+
+#### File Instructions
+
+If there are files that are somewhat relevant to the user's question, reference them and ensure to add the links for each of them.
+Sort these files from the newest to the oldest.
+If there are tens of somewhat relevant files their links can be embedded as markdown links of the form [{{file name}}]({{file url}}).
+
+#### Date Context
+
+The current date and time is: {datetime.datetime.now(tz=datetime.UTC).isoformat()}.
+If asked about a month, day, or year, use the current date and time to provide an accurate answer.
+If no year is specified, use the current year, {datetime.datetime.now(tz=datetime.UTC).year}.
+If no month is specified, use the current month, {datetime.datetime.now(tz=datetime.UTC).month}.
+
+### Retrieved Knowledge
+
+The following information comes from a knowledge base. Use it to answer the question.
+You should not reference retrieved documents in general terms, but instead use the information to provide a specific and relevant answer.
+If a specific answer is from one or more specific documents and you need to reference them, you should provide the document name and / or file URL in your answer.
+
+{document_context}
+### Closing Context
+
+Prefer newer information and always respect the date context specified above.
+Prefer structuring data as lists instead of tables, and avoid using tables unless necessary.
+Be as detailed and accurate as possible with a focus on the most salient information.
+"""
+    return updated_prompt
+
+
+def build_rewrite_prompt(user_prompt: str) -> str:
     rewrite = f"""
 ## Convert the user's request into a JSON object for vector database search.
 
@@ -92,7 +141,7 @@ Return exactly:
   "toDate": "2026-09-30T23:59:59.999Z"
 }}
 
-User request: {user_query}
+User request: {user_prompt}
 
 """
     return rewrite
