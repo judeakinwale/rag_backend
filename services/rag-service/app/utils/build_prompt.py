@@ -12,9 +12,7 @@ class RewrittenQuery(BaseDTO):
 
 
 def parse_rewritten_user_query(rewritten_query: str) -> RewrittenQuery:
-    # TODO: remove this so the argument above is used
-    rewritten_query = '{"queries":["electricity bills","electricity invoices","electric utility billing statements","power supply bills","electricity charges and billing records","electricity consumption statements"],"fromDate":null,"toDate":null}'
-
+    # print(f"[build prompt - testing - parse_written_user_query] rewritten_query: {rewritten_query}\n")
     return RewrittenQuery.model_validate_json(rewritten_query)
 
 

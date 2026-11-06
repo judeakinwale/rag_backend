@@ -42,13 +42,11 @@ router = APIRouter(prefix="/chats", tags=["Chats"])
 # ----- queries
 
 stream_query = Query(
-    True,
-    # False,
+    settings.flag_stream,  # True,
     description="If true, stream the response from the ai assistant",
 )
 sse_query = Query(
-    True,
-    # False,
+    settings.flag_stream,  # True,
     description="If true and stream is true, stream the response from the ai assistant as a server-sent event",
 )
 process_messages_query = Query(
@@ -67,6 +65,7 @@ process_messages_query = Query(
 )
 async def test_chat_stream(
     body: SimpleChat,
+    sse: bool = sse_query,
     # service: OpenAIService = Depends(get_openai_service),
     # current_user: EntraUser = Depends(get_current_user),
 ) -> SimpleChat | str:
@@ -90,7 +89,9 @@ async def test_chat_stream(
 
     async def stream():
         async for chunk in generate_response(body.prompt):
-            # yield chunk
+            if not sse:
+                yield chunk
+
             chat_json = SimpleChat(
                 prompt=body.prompt,
                 response=chunk,
@@ -100,10 +101,8 @@ async def test_chat_stream(
             yield f"data: {chat_json}\n\n"
 
     return responses.StreamingResponse(
-        stream(),
-        # generate_response(body.prompt),
-        # media_type="application/json",
-        media_type="text/plain",
+        stream(),  # generate_response(body.prompt),
+        media_type="text/event-stream" if sse else "text/plain",
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
@@ -131,7 +130,6 @@ async def test_chat(
     body: SimpleChat,
     stream: bool = stream_query,
     sse: bool = sse_query,
-    # stream: Annotated[bool,Query(False, description="If true, stream the response from the ai assistant"),],
     service: OpenAIService = Depends(get_openai_service),
     current_user: EntraUser = Depends(get_current_user),
 ) -> SimpleChat | str:
@@ -149,9 +147,8 @@ async def test_chat(
 
         return responses.StreamingResponse(
             process_openai_response_stream(response, payload=payload, return_sse=sse),
-            # media_type="application/x-ndjson", # for newline delimited json streaming
-            media_type="text/plain",  # for plain text
-            # media_type="text/event-stream",  # for server sent events
+            # "application/x-ndjson" for newline delimited json streaming, "text/plain" for plain text and "text/event-stream" for server sent events
+            media_type="text/event-stream" if sse else "text/plain",
             headers={
                 "Transfer-Encoding": "chunked",
                 "Cache-Control": "no-cache, no-transform",  # "no-cache",
@@ -210,48 +207,15 @@ async def create_chat(
 ) -> ChatAPIResponse | str:
 
     if stream:
-        # TODO: implement create_chat_response in rag_service
-        # # response: AsyncStream[ResponseStreamEvent], references: ChatMessageReferences
-        # response, references = await rag_service.create_chat_response(
-        #     body.messages, stream=stream
-        # )
-
-        # response_all = await rag_service.create_chat(
         response, references = await rag_service.create_chat(
             body, process_messages=process_messages, stream=stream
         )
-
-        print(
-            f"[chats api - testing - create-chat] response: {response}, stream: {stream},  type: {type(response)}"
-        )
-
-        # return str(response_all)
-
-        payload = CreateChatRequest(**body.model_dump())
-        # if sse:
-        #     payload = UpdateChatRequest(**body.model_dump())
-
-        async def create_wrapper(payload: CreateChatRequest, complete_prompt: str):
-            # ? the assistant message is created and added to messages in process_openai_response_stream
-            payload.messages = rag_service._add_references_to_last_message(
-                payload.messages, references
-            )
-
-            return await rag_service.create_chat(
-                payload, process_messages=False, stream=False
-            )
-
-        # create_wrapper = partial(
-        #     rag_service.create_chat, process_messages=process_messages
-        # )
-        # create_wrapper = lambda body: rag_service.create_chat(
-        #     body, process_messages=process_messages
-        # )
+        create_wrapper = rag_service.get_create_response_completion_wrapper(references)
 
         return responses.StreamingResponse(
             process_openai_response_stream(
                 response,
-                payload=payload,
+                payload=body,
                 return_sse=sse,
                 process_completion_fn=create_wrapper,
             ),
@@ -264,9 +228,6 @@ async def create_chat(
             },
         )
 
-    print(f"[chats api - testing - create_chat] body: {body}, stream: {stream}")
-
-    # working non streaming code
     created_chat = await rag_service.create_chat(
         body, process_messages=process_messages, stream=stream
     )
@@ -299,51 +260,6 @@ async def get_chat(
     )
 
 
-update_with_prompt_kwargs = {
-    "status_code": status.HTTP_200_OK,
-    "response_model": ChatAPIResponse,
-    # "response_model": APIResponse,
-    "response_model_exclude_none": True,
-    "response_model_exclude_unset": True,
-    "summary": "Update a chat with a prompt",
-}
-
-
-@router.post("/{chat_id}/prompt", **update_with_prompt_kwargs)
-@router.post("/prompt", **update_with_prompt_kwargs)
-async def update_chat_with_prompt(
-    request: Request,
-    body: AddPromptRequest,
-    stream: bool = stream_query,
-    sse: bool = sse_query,
-    chat_id: int | None = None,
-    service: RagService = Depends(get_rag_service),
-    current_user: EntraUser = Depends(get_current_user),
-) -> ChatAPIResponse:
-    # ) -> APIResponse:
-
-    if chat_id is None and body.session_id is None:
-        raise BadRequestException("Either chat_id or session_id must be provided.")
-
-    updated_chat, references = await service.update_chat_with_prompt(
-        chat_id=chat_id,
-        session_id=body.session_id,
-        payload=body,
-        # # TODO: remove these after testing
-        # update_chat=False,
-        # generate_assistant_message=False,
-    )
-
-    # data = {"chat": updated_chat, "references": references}
-
-    return ChatAPIResponse(
-        # return APIResponse(
-        success=True,
-        data=updated_chat,
-        # data=data,
-    )
-
-
 update_kwargs = {
     "status_code": status.HTTP_200_OK,
     "response_model": ChatAPIResponse,
@@ -370,9 +286,6 @@ async def update_chat(
         response, references = await rag_service.update_chat(
             body, chat_id=chat_id, process_messages=process_messages, stream=stream
         )
-        # print_msg = f"[chats api - testing - update-chat] response: {response}, stream: {stream},  type: {type(response)}"
-        # print(print_msg)
-
         update_wrapper = rag_service.get_update_response_completion_wrapper(
             chat_id, references
         )
@@ -395,6 +308,69 @@ async def update_chat(
 
     updated_chat = await rag_service.update_chat(
         body, chat_id=chat_id, process_messages=process_messages, stream=stream
+    )
+
+    return ChatAPIResponse(
+        success=True,
+        data=updated_chat,
+    )
+
+
+update_with_prompt_kwargs = {
+    "status_code": status.HTTP_200_OK,
+    "response_model": ChatAPIResponse,  # APIResponse
+    "response_model_exclude_none": True,
+    "response_model_exclude_unset": True,
+    "summary": "Update a chat with a prompt",
+}
+
+
+@router.post("/{chat_id}/prompt", **update_with_prompt_kwargs)
+@router.post("/prompt", **update_with_prompt_kwargs)
+async def update_chat_with_prompt(
+    request: Request,
+    body: AddPromptRequest,
+    chat_id: int | None = None,
+    stream: bool = stream_query,
+    sse: bool = sse_query,
+    process_messages: bool = process_messages_query,
+    rag_service: RagService = Depends(get_rag_service),
+    service: ChatService = Depends(get_chat_service),
+    current_user: EntraUser = Depends(get_current_user),
+) -> ChatAPIResponse:  # APIResponse:
+
+    payload = rag_service.convert_add_prompt_request_to_update_chat_request(body)
+
+    if stream:
+        response, references = await rag_service.update_chat(
+            payload,
+            chat_id=chat_id,
+            session_id=body.session_id,
+            process_messages=process_messages,
+            stream=stream,
+        )
+        update_wrapper = rag_service.get_update_response_completion_wrapper(
+            chat_id, references
+        )
+
+        return responses.StreamingResponse(
+            process_openai_response_stream(
+                response,
+                payload=payload,
+                return_sse=sse,
+                process_completion_fn=update_wrapper,
+            ),
+            # "text/plain" for plain text and "text/event-stream" for server sent events
+            media_type="text/event-stream" if sse else "text/plain",
+            headers={
+                "Transfer-Encoding": "chunked",
+                "Cache-Control": "no-cache, no-transform",  # "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    updated_chat = await rag_service.update_chat(
+        payload, chat_id=chat_id, process_messages=process_messages, stream=stream
     )
 
     return ChatAPIResponse(

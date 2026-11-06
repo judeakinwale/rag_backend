@@ -36,11 +36,11 @@ async def process_openai_response_stream(
         # call function to create / update the chat using the provided payload
         chat: ChatResponse = await process_completion_fn(payload, stream)
         cleaned_chat = ChatService.cleanChatResponse(chat)
-        chat_json = cleaned_chat.model_dump_json()
 
         logger.info("Created / updated chat (chat response) in the database\n")
 
         if return_sse:
+            chat_json = cleaned_chat.model_dump_json()
             yield f"data: {chat_json}\n\n"
             logger.info(f"response SSE streaming done, final str_response: {stream}\n")
             return
@@ -82,12 +82,17 @@ async def process_openai_response_stream(
 
                 # call function to create / update the chat using the provided payload
                 chat: ChatResponse = await process_completion_fn(payload, str_response)
-                chat_json = chat.model_dump_json()
+                cleaned_chat = ChatService.cleanChatResponse(chat)
 
                 logger.info("Created / updated chat (chat response) in the database\n")
 
                 if return_sse:
+                    chat_json = cleaned_chat.model_dump_json()
                     yield f"data: {chat_json}\n\n"
+                    logger.info(
+                        f"response SSE streaming done, final str_response: {str_response}\n"
+                    )
+                    break
 
             logger.info(
                 f"response streaming done, final str_response: {str_response}\n"
@@ -106,7 +111,7 @@ async def process_openai_response_stream(
         if is_stream_done:
             continue  # continue the loop but skip the yielding code below
 
-        print(f"processing part_str_response: {part_str_response}\n")
+        # print(f"processing part_str_response: {part_str_response}\n")
         # print(
         #     f"processing part_str_response: {part_str_response if not is_stream_done else 'test'}\n"
         # )
