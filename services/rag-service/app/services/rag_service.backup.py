@@ -1,0 +1,1322 @@
+# import asyncio
+# import datetime
+# import logging
+# import time
+# from typing import overload
+
+# import httpx
+# import torch
+# import torch.nn.functional as F
+# from app.core.config import settings
+# from app.services.chat_service import Chat, ChatService
+# from app.services.prompt_builder_service import PromptBuilder
+# from app.utils.build_prompt import (
+#     build_prompt_with_context,
+#     build_rewrite_prompt,
+#     parse_rewritten_user_query,
+# )
+# from app.utils.skip_words import general_skip_list
+# from qdrant_client.http.models import ExtendedPointId
+# from rag_packages.contracts.dto.chat import (
+#     AddPromptRequest,
+#     ChatMessage,
+#     ChatMessageReferences,
+#     ChatResponse,
+#     CreateChatRequest,
+#     OpenAIChatMessage,
+#     UpdateChatRequest,
+# )
+# from rag_packages.contracts.dto.document import (
+#     DocumentListAPIResponse,
+#     DocumentResponse,
+# )
+# from rag_packages.contracts.dto.shared_dto import BaseDTO
+# from rag_packages.contracts.dto.vector_document import VectorDocumentResponse
+# from rag_packages.shared.ai.openai import (
+#     ActorRole,
+#     ChatCompletionChunk,
+#     OpenAIResponse,
+#     OpenAIService,
+#     OpenAIStreamResponse,
+#     Response,
+#     ResponseMethod,
+#     # ___________________
+#     ResponseStreamEvent,
+# )
+# from rag_packages.shared.exception.exception import BadRequestException
+
+# # from fastembed import TextEmbedding
+# from rag_packages.shared.processing.qdrant import QdrantService, ScoredPoint
+# from rag_packages.shared.utils.format import dicts_to_markdown
+
+# # from app.repositories.chat_repository import ChatRepository
+
+# # force rebuild
+
+# logger = logging.getLogger(__name__)
+
+# # ----- move these to utils
+
+
+# def decode_escapes(text: str = "") -> str:
+#     cleaned_str = bytes(text, "utf-8").decode("unicode_escape")
+#     return cleaned_str
+
+
+# @overload
+# def update_str(initial: str, new: str, separator: str = "\n") -> str: ...
+
+
+# @overload
+# def update_str(initial: list[str], new: list[str]) -> list[str]: ...
+
+
+# @overload
+# def update_str(initial: list[str], new: str) -> list[str]: ...
+
+
+# def update_str(
+#     initial: str | list[str], new: str | list[str], separator: str = "\n"
+# ) -> str | list[str]:
+#     is_initial_str = isinstance(initial, str)
+#     is_new_str = isinstance(new, str)
+
+#     if is_new_str:
+#         if is_initial_str:
+#             return f"{initial}{separator}{new}\n"
+
+#         return initial.append(new)
+
+#     return initial.extend(new)
+
+
+# # ----- move these to utils
+
+
+# # Query Rewriter
+# # Document Search Service (PostgreSQL)
+# # Vector Search Service
+# # Context Builder
+# # Prompt Builder
+# # OpenAI Service
+
+
+# class RagService:
+#     # _rewrite_instructions = (
+#     #     "You are a helpful assistant that rewrites user queries to be more specific and relevant "
+#     #     "based on the previous conversation context. "
+#     #     "You should use the previous conversation to understand the user's intent and provide a "
+#     #     "rewritten query that is clear, concise, and focused on the user's needs. "
+#     #     "Do not add any additional information or context that is not present in the previous conversation. "
+#     #     "If the previous conversation does not provide enough context, return the original query without changes."
+#     # )
+
+#     # used only for building context for multiple queries
+#     _query_semaphore = asyncio.Semaphore(12)
+#     # used for everything else
+#     _semaphore = asyncio.Semaphore(12)
+
+#     def __init__(
+#         self,
+#         # chat_repository: ChatRepository,
+#         chat_service: ChatService,
+#         qdrant_service: QdrantService,
+#         openai_service: OpenAIService | None = None,
+#         root_cert_path: str | None = None,
+#         skip_list: list[str] = general_skip_list,
+#     ):
+#         # self.chat_repository = chat_repository
+#         self.chat_service = chat_service
+#         self.qdrant_service = qdrant_service
+#         self.openai_service = openai_service
+#         self.prompt_builder = PromptBuilder()
+
+#         # # self.model_name = "BAAI/bge-base-en"
+#         # self.embedding_model = TextEmbedding(
+#         #     # model_name=self.model_name,
+#         #     lazy_load=True,
+#         # )
+
+#         self.root_cert_path = (
+#             root_cert_path if root_cert_path is not None else settings.ROOT_CERT_PATH
+#         )
+#         self._ingest_service_origin = settings.INGEST_SERVICE_ORIGIN
+#         self._get_documents_path = settings.GET_DOCUMENTS_PATH
+#         self._skip_list = skip_list
+#         self._skip_list_embeddings: list[list[float]] = []
+
+#     # async def _generate_vector_embeddings(self, texts: list[str]) -> list[list[float]]:
+#     #     if not texts:
+#     #         raise ValueError(
+#     #             f"[{self.service_name}] texts are required to generate embeddings."
+#     #         )
+
+#     #     # NOTE: if unstable under heavy concurrency, protect embedding calls with an asyncio.Lock or use a small worker pool.
+#     #     embeddings = await asyncio.to_thread(
+#     #         lambda: [
+#     #             embedding.tolist() for embedding in self.embedding_model.embed(texts)
+#     #         ]
+#     #     )
+#     #     if not embeddings:
+#     #         raise ValueError(
+#     #             f"[{self.service_name}] Failed to generate embeddings for the supplied texts."
+#     #         )
+
+#     #     return embeddings
+
+#     async def _get_skip_list_embeddings(self) -> list[list[float]]:
+#         if not self._skip_list_embeddings:
+#             self._skip_list_embeddings = (
+#                 await self.qdrant_service.generate_vector_embeddings(self._skip_list)
+#             )
+
+#         return self._skip_list_embeddings
+
+#     # rewrite might be expensive, so added skip flag for testing and debugging
+#     async def _rewrite_query(
+#         self, query: str, prev_conversation: list[ChatMessage], enabled: bool = False
+#     ) -> str:
+#         # TODO: remove this to use the argument above
+#         enabled = False
+#         if not enabled:
+#             return query
+
+#         if self.openai_service is None:
+#             logger.warning("OpenAI service is not initialized.")
+#             return query
+
+#         valid_prev_conversation = [
+#             OpenAIChatMessage.model_validate(
+#                 message.model_dump(exclude_unset=True, exclude_none=True)
+#             )
+#             for message in prev_conversation
+#         ]
+
+#         rewrite_instructions = build_rewrite_prompt(query)
+#         # print({"rewrite_instructions": rewrite_instructions})
+
+#         # TODO: add the previous conversation as part of the instructions as sending it directly breaks the code
+#         response: Response = await self.openai_service.create_response(
+#             prompt=rewrite_instructions,
+#             # prompt=query,
+#             # instructions=rewrite_instructions,
+#             # instructions=self._rewrite_instructions,
+#             # prev_conversation=valid_prev_conversation or [],
+#         )
+#         # print({"response": response})
+
+#         # rewritten_query = response.output_text
+
+#         rewritten_query = self._get_response_text(response)
+#         # print({"[rag service - testing] rewritten_query": rewritten_query})
+
+#         return rewritten_query
+
+#     def _get_last_prompt(self, messages: list[ChatMessage]) -> str:
+#         if not messages:
+#             return ""
+
+#         last_message = messages[-1]
+#         if isinstance(last_message.content, str):
+#             return last_message.content
+
+#         last_prompt_list = [
+#             part.get("text", "")
+#             for part in last_message.content
+#             if part.get("type") == "input_text"
+#         ]
+#         last_prompt = " ".join(last_prompt_list)
+
+#         return last_prompt
+
+#     def _update_last_prompt(
+#         self,
+#         prompt: str,
+#         messages: list[ChatMessage],
+#         references: ChatMessageReferences | None = None,
+#     ) -> list[ChatMessage]:
+#         if not messages or not prompt:
+#             return messages
+
+#         last_message = messages[-1]
+#         if isinstance(last_message.content, str):
+#             last_message.content = prompt
+#             return messages
+
+#         for part in last_message.content:
+#             if part.get("type") == "input_text":
+#                 part["text"] = prompt
+#                 break
+
+#         if references:
+#             last_message.references = references
+
+#         return messages
+
+#     async def get_query_matching_documents(
+#         self, query: str, limit: int = 5
+#     ) -> list[DocumentResponse]:
+#         # print({"root_cert_path": self.root_cert_path})
+#         async with httpx.AsyncClient(verify=self.root_cert_path, timeout=30) as client:
+#             # print(
+#             #     {
+#             #         "get_documents_url": f"{self._ingest_service_origin}/{self._get_documents_path}",
+#             #         "ingest_service_origin": self._ingest_service_origin,
+#             #         "get_documents_path": self._get_documents_path,
+#             #     }
+#             # )
+#             response = await client.get(
+#                 f"{self._ingest_service_origin}/{self._get_documents_path}",
+#                 params={"query": query, "limit": limit},
+#             )
+#             response.raise_for_status()
+#             response_json = response.json()
+
+#             doc_response = DocumentListAPIResponse.model_validate(response_json)
+#             documents = doc_response.data if doc_response.data is not None else []
+#             return documents
+
+#     async def _get_matching_documents(
+#         self, query: str | list[str], limit: int = 5
+#     ) -> list[DocumentResponse]:
+#         queries = query if isinstance(query, list) else [query]
+
+#         # TODO: fix .gather socket hangup issue
+#         # match_tasks = [self.get_query_matching_documents(q, limit) for q in queries]
+#         # docs_responses = await asyncio.gather(*match_tasks)
+
+#         # documents = [doc for docs in docs_responses for doc in docs]
+#         # # documents = [*docs for docs in docs_responses] # for python 3.15+
+
+#         documents: list[DocumentResponse] = []
+#         for q in queries:
+#             docs = await self.get_query_matching_documents(q, limit)
+#             documents.extend(docs)
+
+#         return documents
+
+#     async def _get_matching_vector_documents(
+#         self, query: str | list[str], limit: int = 5
+#     ) -> list[ScoredPoint]:
+#         """
+#         Retrieve the limit most relevant documents from the vector database based on the query.
+#         """
+#         points = await self.qdrant_service.search(query=query, limit=limit)
+#         return points
+
+#     def _get_point_payload(self, point: ScoredPoint) -> VectorDocumentResponse:
+#         payload = point.payload
+#         return VectorDocumentResponse.model_validate(payload)
+
+#     # check if the prompt contains mostly generic and / or skip words and / or phrases
+#     async def _should_skip_context_building(
+#         self, prompt: str | None = None, threshold: float = 0.9
+#     ) -> bool:
+#         cleaned_prompt = [prompt.strip()] if prompt else None
+#         if not cleaned_prompt:
+#             return not cleaned_prompt
+
+#         # TODO: delete this
+#         prompt_embeddings = await self.qdrant_service.generate_vector_embeddings(
+#             cleaned_prompt
+#         )
+#         skip_embeddings = await self._get_skip_list_embeddings()
+
+#         # TODO: fix .gather socket hangup issue
+#         # async with self._semaphore, asyncio.TaskGroup() as tg:
+#         # #     prompt_embeddings = tg.create_task(
+#         # #         self.qdrant_service.generate_vector_embeddings(cleaned_prompt)
+#         # #     )
+#         # #     skip_embeddings = tg.create_task(self._get_skip_list_embeddings())
+
+#         # prompt_embeddings, skip_embeddings = await asyncio.gather(
+#         #     self.qdrant_service.generate_vector_embeddings(cleaned_prompt),
+#         #     self._get_skip_list_embeddings(),
+#         # )
+
+#         single_prompt_embedding = prompt_embeddings[0] if prompt_embeddings else None
+#         prompt_tensor = torch.tensor(single_prompt_embedding)
+
+#         for emb in skip_embeddings:
+#             emb_tensor = torch.tensor(emb)
+#             score = F.cosine_similarity(
+#                 prompt_tensor.unsqueeze(0), emb_tensor.unsqueeze(0)
+#             ).item()
+
+#             if score >= threshold:
+#                 return True
+
+#         return False
+
+#     # build markdown context strings from the retrieved documents and vector documents
+#     async def _build_document_context(
+#         self,
+#         query: str | list[str],
+#         limit: int = 100,
+#         relevance_threshold: float = 0.75,  # 0.8 seems too strict
+#         min_query_length: int = 8,
+#         processed_points: list[ExtendedPointId] | None = None,
+#     ) -> tuple[str, ChatMessageReferences | None]:
+#         default_return = f"{query}", None
+
+#         is_short_query = (
+#             len(query.strip()) < min_query_length
+#             if query and isinstance(query, str)
+#             else False
+#         )
+#         if is_short_query:
+#             logger.info(
+#                 "Query is too short to build a meaningful context. Skipping context building.",
+#                 extra={"query": query},
+#             )
+#             return default_return
+
+#         should_skip = await self._should_skip_context_building(query)
+#         if should_skip:
+#             logger.info(
+#                 "The query is too generic or common to build any meaningful context. Please provide a more specific query.",
+#                 extra={"query": query},
+#             )
+#             return default_return
+
+#         points = await self._get_matching_vector_documents(query=query, limit=limit)
+#         documents = await self._get_matching_documents(query=query, limit=limit)
+
+#         # TODO: fix .gather socket hangup issue
+#         # points, documents = await asyncio.gather(
+#         #     self._get_matching_vector_documents(query=query, limit=limit),
+#         #     self._get_matching_documents(query=query, limit=limit),
+#         # )
+
+#         # print({"[rag service - testing] relevance_threshold": relevance_threshold})
+#         # print({"[rag service - testing] points": points})
+
+#         def process_point(
+#             point: ScoredPoint, processed_point_ids: list[ExtendedPointId] | None
+#         ) -> VectorDocumentResponse | None:
+#             if processed_point_ids is not None and point.id not in processed_point_ids:
+#                 processed_point_ids.append(point.id)
+
+#             payload = self._get_point_payload(point)
+#             # print({"[rag service - testing] point_score": point.score})
+#             if (
+#                 point.score >= relevance_threshold and payload.text
+#                 # and len(payload.text.strip()) > min_query_length
+#             ):
+#                 del payload.details.tables
+#                 del payload.details.bbox
+#                 del payload.details.figures
+#                 # del payload.details.captions
+#                 # del payload.details.headings
+
+#                 return payload
+
+#         payloads = [
+#             doc
+#             for point in points
+#             if ((doc := process_point(point, processed_points)) is not None)
+#         ]
+
+#         normalize_vector_docs, normalize_docs = (
+#             self.chat_service.normalize_chat_message_vector_documents,
+#             self.chat_service.normalize_chat_message_documents,
+#         )
+#         vector_docs_markdown = dicts_to_markdown(
+#             [normalize_vector_docs(payload, True).model_dump() for payload in payloads],
+#             ["text", "file_metadata", "details_markdown"],
+#             section_title="Retrieved Vector Documents",
+#             subtitle_key="file_name",
+#         )
+#         docs_markdown = dicts_to_markdown(
+#             [normalize_docs(doc, True).model_dump() for doc in documents],
+#             ["name", "file_url", "file_metadata"],  # TODO: update these
+#             section_title="Retrieved Document References",
+#             subtitle_key="file_name",
+#         )
+
+#         # print({"[rag service - testing] vector_docs_markdown": vector_docs_markdown})
+
+#         context = f"{vector_docs_markdown}\n{docs_markdown}\n"
+
+#         references = ChatMessageReferences(
+#             vector_documents=payloads,
+#             documents=documents or [],
+#         )
+
+#         return context, references
+
+#     # # build markdown context strings from the retrieved documents and vector documents
+#     # async def _build_document_context_DEPRECIATED(
+#     #     self,
+#     #     query: str | list[str],
+#     #     limit: int = 100,
+#     #     relevance_threshold: float = 0.70,  # 0.8 seems too strict
+#     #     min_query_length: int = 8,
+#     #     processed_points: list[ExtendedPointId] | None = None,
+#     # ) -> tuple[str, ChatMessageReferences | None]:
+#     #     default_return = "", None
+
+#     #     is_short_query = (
+#     #         len(query) < min_query_length if isinstance(query, str) else False
+#     #     )
+#     #     if is_short_query:
+#     #         logger.info(
+#     #             "Query is too short to build a meaningful context. Skipping context building.",
+#     #             extra={"query": query},
+#     #         )
+#     #         return default_return
+
+#     #     should_skip = await self._should_skip_context_building(query)
+#     #     if should_skip:
+#     #         logger.info(
+#     #             f"The query is too generic or common to build any meaningful context. Please provide a more specific query: {query}."
+#     #             # f"query: {query}, should_skip: {should_skip}"
+#     #         )
+#     #         return default_return
+
+#     #     points = await self._get_matching_vector_documents(query=query, limit=limit)
+
+#     #     # print({"[rag service - testing] relevance_threshold": relevance_threshold})
+#     #     # print({"[rag service - testing] points": points})
+
+#     #     # payloads = [
+#     #     #     self._get_point_payload(point) for point in points if point.score >= 8.5
+#     #     # ]
+
+#     #     def process_point(
+#     #         point: ScoredPoint, processed_point_ids: list[ExtendedPointId] | None
+#     #     ) -> VectorDocumentResponse | None:
+#     #         if processed_point_ids is not None and point.id not in processed_point_ids:
+#     #             processed_point_ids.append(point.id)
+
+#     #         payload = self._get_point_payload(point)
+#     #         # print({"[rag service - testing] point_score": point.score})
+#     #         if (
+#     #             point.score >= relevance_threshold
+#     #             and payload.text
+#     #             and len(payload.text.strip()) > min_query_length
+#     #         ):
+#     #             del payload.details.tables
+#     #             del payload.details.bbox
+#     #             del payload.details.figures
+
+#     #             return payload
+
+#     #     payloads = [
+#     #         doc
+#     #         for point in points
+#     #         if (doc := process_point(point, processed_points) is not None)
+#     #     ]
+
+#     #     # payloads: list[VectorDocumentResponse] = []
+#     #     # for point in points:
+#     #     #     if processed_point_ids:
+#     #     #         if point.id in processed_point_ids:
+#     #     #             continue
+#     #     #         processed_point_ids.append(point.id)
+
+#     #     #     payload = self._get_point_payload(point)
+#     #     #     # print({"[rag service - testing] point_score": point.score})
+#     #     #     if (
+#     #     #         point.score >= relevance_threshold
+#     #     #         and payload.text
+#     #     #         and len(payload.text.strip()) > min_query_length
+#     #     #     ):
+#     #     #         del payload.details.tables
+#     #     #         del payload.details.bbox
+#     #     #         del payload.details.figures
+#     #     #         payloads.append(payload)
+
+#     #     # -----
+
+#     #     # # print({"points": points})
+#     #     # updated_points: list[ScoredPoint] = []
+#     #     # for p in points:
+#     #     #     payload = self._get_point_payload(p)
+
+#     #     #     if (
+#     #     #         p.score >= relevance_threshold
+#     #     #         and payload.text
+#     #     #         and len(payload.text.strip()) > min_query_length
+#     #     #     ):
+#     #     #         updated_p = {
+#     #     #             "id": p.id,
+#     #     #             "score": p.score,
+#     #     #             "order_value": p.order_value,
+#     #     #             "shard_key": p.shard_key,
+#     #     #             "vector": p.vector,
+#     #     #             "version": p.version,
+#     #     #             "text": payload.text,
+#     #     #             "file_url": payload.file_metadata.file_url,
+#     #     #         }
+#     #     #         updated_points.append(updated_p)
+
+#     #     # print({"updated_points": updated_points})
+
+#     #     if not payloads:
+#     #         return default_return
+
+#     #     documents = await self._get_matching_documents(query=query, limit=limit)
+
+#     #     # TODO: add the payload details and the document metadata to the context
+#     #     # Look into moving this into prompt_builder
+
+#     #     vector_doc_markdown = dicts_to_markdown(
+#     #         [
+#     #             self.chat_service.normalize_chat_message_vector_documents(
+#     #                 payload, True
+#     #             ).model_dump()
+#     #             for payload in payloads
+#     #         ],
+#     #         ["text", "file_metadata", "details_markdown"],
+#     #         section_title="Retrieved Vector Documents",
+#     #         subtitle_key="file_name",
+#     #     )
+
+#     #     # print({"[rag service - testing] vector_doc_markdown": vector_doc_markdown})
+
+#     #     context = f"{vector_doc_markdown}\n"
+
+#     #     # # ? this is handled as part of normalize_chat_message_vector_documents now
+#     #     # vector_doc_details_markdown = dicts_to_markdown(
+#     #     #     [self.chat_service.get_vector_doc_details(payload) for payload in payloads],
+#     #     #     ["pages"],  # , "headings", "captions", "tables", "figures"
+#     #     #     section_title="Retrieved Vector Document Details",
+#     #     #     subtitle_key="headings",
+#     #     # )
+
+#     #     # # documents_markdown = dicts_to_markdown(
+#     #     # #     [self.chat_service.normalize_chat_message_documents(doc).model_dump() for doc in documents],
+#     #     # #     ["text", "file_metadata"],
+#     #     # #     section_title="Retrieved Document References",
+#     #     # #     subtitle_key="file_name",
+#     #     # # )
+
+#     #     # context = f"{vector_doc_markdown}\n{vector_doc_details_markdown}\n"
+#     #     # context = (
+#     #     #     f"{'\n'.join([payload.text for payload in payloads])} \n"
+#     #     #     f"{'\n'.join([str(payload.details.model_dump()) for payload in payloads])} \n"
+#     #     #     f"{'\n'.join([str(payload.file_metadata.model_dump()) for payload in payloads])} \n"
+#     #     #     # f"{'\n'.join([document.file_metadata for document in documents])} \n"
+#     #     # )
+
+#     #     references = ChatMessageReferences(
+#     #         vector_documents=payloads,
+#     #         documents=documents or [],
+#     #     )
+
+#     #     return context, references
+
+#     def _get_response_text(self, response: OpenAIResponse) -> str:
+#         response_text = getattr(response, "output_text", None)
+#         # the response is of type Response
+#         if response_text is not None:
+#             return response_text
+
+#         choices = getattr(response, "choices", None) or []
+#         # the response is of type ChatCompletion
+#         if choices and choices[0].message.content:
+#             return choices[0].message.content
+
+#         raise BadRequestException("OpenAI service returned an empty chat response.")
+
+#     def _get_stream_event_text(self, event: ResponseStreamEvent) -> str:
+#         text: str = ""
+
+#         match event.type:
+#             case "response.output_text.delta":
+#                 text = event.delta
+
+#             case "response.completed":
+#                 msg = "OpenAI service returned a completed response: response streaming completed."
+#                 logger.info(msg)
+#                 # response = event.response
+#                 # text = response.output_text
+#                 # completed = True
+
+#             case "response.failed":
+#                 default_err_msg = "OpenAI service returned a failed response."
+#                 raise RuntimeError(event.response.error or default_err_msg)
+
+#         if text:
+#             # TODO: stream the text to the frontend using websockets or SSE (Server-Sent Events)
+#             pass
+
+#         return text
+
+#     def _get_chat_chunk_text(self, chunk: ChatCompletionChunk) -> str:
+#         choices = getattr(chunk, "choices", None) or []
+#         if not choices:
+#             return ""
+
+#         delta = getattr(choices[0], "delta", None)
+
+#         text = getattr(delta, "content", "") or ""
+#         if text:
+#             # TODO: stream the text to the frontend using websockets or SSE (Server-Sent Events)
+#             pass
+
+#         return text
+
+#     async def _stream_response_text(
+#         self,
+#         stream: OpenAIStreamResponse,
+#         response_method: ResponseMethod = ResponseMethod.RESPONSE,
+#     ) -> str:
+
+#         text_parts: list[str] = []
+#         async for event in stream:
+#             if response_method == ResponseMethod.CHAT_COMPLETION:
+#                 text = self._get_chat_chunk_text(event)
+#             else:
+#                 text = self._get_stream_event_text(event)
+
+#             if text:
+#                 text_parts.append(text)
+
+#         response_text = "".join(text_parts).strip()
+#         if response_text:
+#             return response_text
+
+#         raise BadRequestException("OpenAI service returned an empty chat response.")
+
+#     # TODO: rewrite this and _append_assistant_reply to be less redundant later
+#     # ? should this and _append_assistant_reply be merged
+#     async def _generate_assistant_message(
+#         self,
+#         conversation: list[ChatMessage],
+#         *,
+#         prompt: str | None = None,
+#         instructions: str | None = None,
+#         file_url: str | None = None,
+#         b64_file: str | None = None,
+#         file_mime_type: str | None = None,
+#         stream: bool = False,
+#         references: ChatMessageReferences | None = None,
+#     ) -> ChatMessage:
+#         if self.openai_service is None:
+#             raise BadRequestException(
+#                 "OpenAI service is not configured for chat responses."
+#             )
+
+#         valid_conversation = [
+#             OpenAIChatMessage.model_validate(message).model_dump(
+#                 exclude_unset=True, exclude_none=True
+#             )
+#             for message in conversation
+#         ]
+#         # print({"[rag service - testing] valid_conversation": valid_conversation})
+
+#         if prompt is not None:
+#             response = await self.openai_service.create_response(
+#                 prompt=prompt,
+#                 prev_conversation=valid_conversation,
+#                 instructions=instructions,
+#                 file_url=file_url,
+#                 b64_file=b64_file,
+#                 b64_file_mime_type=file_mime_type,
+#                 stream=stream,
+#             )
+#         else:
+#             response = await self.openai_service.create_response(
+#                 conversation=valid_conversation,
+#                 instructions=instructions,
+#                 stream=stream,
+#             )
+
+#         if stream:
+#             response_text = await self._stream_response_text(response)
+#         else:
+#             response_text = self._get_response_text(response)
+
+#         return self.prompt_builder.create_chat_message(
+#             role=ActorRole.ASSISTANT, content=response_text, references=references
+#         )
+
+#     async def _append_assistant_reply(
+#         self,
+#         messages: list[ChatMessage],
+#         *,
+#         prompt: str | None = None,
+#         file_url: str | None = None,
+#         b64_file: str | None = None,
+#         file_mime_type: str | None = None,
+#         # use messages as previous conversation context
+#         # the new prompt is already added to the messages list, so exclude it (the last message)
+#         # ? this seems dumb, the openai_service already handles the previous conversation
+#         use_prev_conversation: bool = False,
+#         references: ChatMessageReferences | None = None,
+#     ) -> list[ChatMessage]:
+#         assistant_message = await self._generate_assistant_message(
+#             messages if not use_prev_conversation else messages[:-1],
+#             prompt=prompt,
+#             file_url=file_url,
+#             b64_file=b64_file,
+#             file_mime_type=file_mime_type,
+#             references=references,
+#         )
+#         return [*messages, assistant_message]
+
+#     # str context is not updated in memory, only list[str] context is
+#     async def get_partial_context(
+#         self,
+#         query: list[str],
+#         context: str | list[str],
+#         references: ChatMessageReferences,
+#         # sem: asyncio.Semaphore,
+#         processed_points: list[ExtendedPointId] | None = None,
+#         limit: int = 100,
+#     ) -> tuple[str, ChatMessageReferences]:
+#         refs = references
+
+#         # async with sem:
+#         _q_context, _q_references = await self._build_document_context(
+#             query, limit=limit, processed_points=processed_points
+#         )
+
+#         # is_str = isinstance(context, str)
+#         # context = f"{context}\n{_q_context}\n" if is_str else context.append(_q_context)
+
+#         context = update_str(context, _q_context)
+
+#         if _q_references is None:
+#             return context, references
+
+#         refs.documents.extend(_q_references.documents)
+#         refs.document_chunks.extend(_q_references.document_chunks)
+#         refs.vector_documents.extend(_q_references.vector_documents)
+
+#         return (context), references
+
+#     # TODO: rewrite this later to return only the document context as markdown for use as instructions
+#     async def _prepare_prompt(
+#         self, prompt: str | None = None, messages: list[ChatMessage] | None = None
+#     ) -> tuple[str, list[ChatMessage], ChatMessageReferences | None]:
+#         if prompt is None and not messages:
+#             raise BadRequestException(
+#                 "A prompt and / or conversation messages must be provided."
+#             )
+
+#         # add documents, context and or rewritten prompt
+#         last_prompt = prompt or self._get_last_prompt(messages)
+#         messages = messages or []
+#         messages_copy = self.prompt_builder.copy_messages(messages)
+
+#         # print({"last_prompt": last_prompt, "messages": messages})
+
+#         should_rewrite = True
+#         rewritten_prompt = await self._rewrite_query(
+#             last_prompt, messages, should_rewrite
+#         )
+
+#         document_context = ""
+#         references = ChatMessageReferences(
+#             vector_documents=[],
+#             documents=[],
+#             document_chunks=[],
+#         )
+#         processed_points: list[ExtendedPointId] = []
+
+#         # -----
+
+#         start_time = time.perf_counter_ns()
+
+#         prompt_queries = [prompt]
+#         limit = 250
+#         if should_rewrite:
+#             prompt_queries = parse_rewritten_user_query(rewritten_prompt).queries
+#             limit = 100
+
+#         # TODO: fix .gather socket hangup issue
+#         context_tasks = [
+#             self.get_partial_context(
+#                 query, document_context, references, processed_points, limit
+#             )
+#             for query in prompt_queries
+#         ]
+#         results = await asyncio.gather(*context_tasks)
+#         document_context = "".join([ctx for ctx, ref in results])
+#         # print({"[rag service - testing] get_partial_context results": results})
+
+#         # TODO: remove this
+#         # partial_context = ""
+#         # for query in prompt_queries:
+#         #     partial_context, references = await self.get_partial_context(
+#         #         query, partial_context, references, processed_points, limit
+#         #     )
+#         # document_context = partial_context
+
+#         end_time = time.perf_counter_ns()
+
+#         # Calculate elapsed time
+#         execution_time = (end_time - start_time) * 1e-6
+#         print(
+#             f"[rag service - testing] Context Building Execution time: {execution_time:.6f} milliseconds"
+#         )
+
+#         # -----
+
+#         # if should_rewrite:
+#         #     start_time = time.perf_counter_ns()
+
+#         #     partial_context = ""
+#         #     prompt_queries = parse_rewritten_user_query(rewritten_prompt).queries
+
+#         #     # TODO: fix .gather socket hangup issue
+#         #     context_tasks = [
+#         #         self.get_partial_context(
+#         #             query, partial_context, references, processed_points
+#         #         )
+#         #         for query in prompt_queries
+#         #     ]
+#         #     results = await asyncio.gather(*context_tasks)
+#         #     # print({"[rag service - testing] get_partial_context results": results})
+
+#         #     # for query in prompt_queries:
+#         #     #     partial_context, references = await self.get_partial_context(
+#         #     #         query, partial_context, references, processed_point_ids
+#         #     #     )
+
+#         #     document_context = partial_context
+
+#         #     end_time = time.perf_counter_ns()
+
+#         #     # Calculate elapsed time
+#         #     execution_time = (end_time - start_time) * 1e-6
+#         #     # print(
+#         #     #     f"[rag service - testing] Execution time: {execution_time:.6f} milliseconds"
+#         #     # )
+
+#         # else:
+#         #     document_context, references = await self._build_document_context(
+#         #         rewritten_prompt, limit=300, processed_points=processed_points
+#         #     )
+
+#         # -----
+
+#         # document_context, references = await self._build_document_context(
+#         #     rewritten_prompt, limit=limit, processed_points=processed_points
+#         # )
+
+#         updated_prompt = build_prompt_with_context(
+#             prompt, document_context, rewritten_prompt
+#         )
+
+#         if messages_copy:
+#             messages_with_context = self._update_last_prompt(
+#                 updated_prompt, messages_copy
+#             )
+
+#         return updated_prompt, messages_with_context, references
+
+#     async def _add_file_to_last_message(
+#         self,
+#         messages: list[ChatMessage],
+#         b64_file: str,
+#         b64_file_type: str | None = None,
+#     ) -> list[ChatMessage]:
+#         # update the last message content with a file if a b64 file is provided
+#         file = await self.openai_service._create_file(
+#             b64_file_str=b64_file, b64_file_type=b64_file_type
+#         )
+#         b64_file_id = file.id
+
+#         if isinstance(messages[-1].content, str):
+#             messages[-1].content = [
+#                 {"type": "input_text", "text": messages[-1].content},
+#                 {"type": "input_file", "file_id": b64_file_id},
+#             ]
+#         else:
+#             messages[-1].content.append({"type": "input_file", "file_id": file.id})
+
+#         return messages
+
+#     # -----
+
+#     class B64File(BaseDTO):
+#         name: str | None = None
+#         content: str
+#         type: str
+#         mime_type: str
+
+#     async def generate_assistant_message_with_context_and_files(
+#         self,
+#         messages: list[ChatMessage],
+#         b64_file: str | None = None,
+#         b64_file_type: str | None = None,
+#     ) -> list[ChatMessage]:
+#         if not messages:
+#             return []
+
+#         # # add documents, context and or rewritten prompt
+#         # last_prompt = self._get_last_prompt(messages)
+#         # rewritten_prompt = await self._rewrite_query(last_prompt, messages)
+
+#         # document_context, references = await self._build_document_context(rewritten_prompt, limit=5)
+#         # updated_prompt = f"{rewritten_prompt}\n\n{document_context}"
+
+#         # messages_copy = self.prompt_builder.copy_messages(messages)
+#         # messages_copy = self._update_last_prompt(updated_prompt, messages_copy)
+
+#         # messages = await self._append_assistant_reply(messages_copy)
+#         # return messages
+
+#         if b64_file is not None:
+#             messages = await self._add_file_to_last_message(
+#                 messages, b64_file, b64_file_type=b64_file_type
+#             )
+
+#         prompt, messages_with_context, references = await self._prepare_prompt(
+#             messages=messages
+#         )
+#         print(
+#             f"[rag service - testing - generate_assistant_message_with_context_and_files] prompt: {prompt}"
+#         )
+
+#         # TODO: change this to true once done testing
+#         generate_assistant_message = False
+#         print(
+#             f"[rag service - testing - generate_assistant_message_with_context_and_files] generate_assistant_message: {generate_assistant_message}"
+#         )
+#         if generate_assistant_message:
+#             assistant_message = await self._generate_assistant_message(
+#                 messages_with_context, references=references
+#             )
+#             messages = [*messages, assistant_message]
+
+#         return messages
+
+#     # -----
+
+#     async def _init_chat_messages(
+#         self,
+#         messages: list[ChatMessage],
+#         b64_file: str | None = None,
+#         b64_file_type: str | None = None,
+#     ) -> list[ChatMessage]:
+#         if not messages:
+#             return []
+
+#         # # add documents, context and or rewritten prompt
+#         # last_prompt = self._get_last_prompt(messages)
+#         # rewritten_prompt = await self._rewrite_query(last_prompt, messages)
+
+#         # document_context, references = await self._build_document_context(rewritten_prompt, limit=5)
+#         # updated_prompt = f"{rewritten_prompt}\n\n{document_context}"
+
+#         # messages_copy = self.prompt_builder.copy_messages(messages)
+#         # messages_copy = self._update_last_prompt(updated_prompt, messages_copy)
+
+#         # messages = await self._append_assistant_reply(messages_copy)
+#         # return messages
+
+#         if b64_file is not None:
+#             messages = await self._add_file_to_last_message(
+#                 messages, b64_file, b64_file_type=b64_file_type
+#             )
+
+#         prompt, messages_with_context, references = await self._prepare_prompt(
+#             messages=messages
+#         )
+#         print(
+#             f"[rag service - testing - _init_chat_messages] prompt: {prompt}"
+#             # {
+#             #     "[rag service - testing - _init_chat_messages] messages_with_context": messages_with_context,
+#             # }
+#         )
+
+#         # TODO: change this to true once done testing
+#         generate_assistant_message = True
+#         print(
+#             f"[rag service - testing - _init_chat_messages] generate_assistant_message: {generate_assistant_message}"
+#         )
+#         if generate_assistant_message:
+#             assistant_message = await self._generate_assistant_message(
+#                 messages_with_context, references=references
+#             )
+#             messages = [*messages, assistant_message]
+
+#         return messages
+
+#     async def _update_chat_messages(
+#         self,
+#         existing_messages: list[ChatMessage],
+#         payload: UpdateChatRequest,
+#         b64_file: str | None = None,
+#         b64_file_type: str | None = None,
+#     ) -> list[ChatMessage]:
+#         existing_messages = self.prompt_builder.copy_messages(existing_messages)
+#         replacement_messages = self.prompt_builder.copy_messages(payload.messages)
+#         has_replacement_messages = bool(replacement_messages)
+
+#         merged_messages = existing_messages or []
+#         if has_replacement_messages:
+#             merged_messages = replacement_messages
+
+#         if payload.new_messages:
+#             merged_messages.extend(payload.new_messages)
+
+#         if merged_messages and (has_replacement_messages or payload.new_messages):
+#             # # add documents, context and or rewritten prompt
+#             # last_prompt = self._get_last_prompt(merged_messages)
+#             # rewritten_prompt = await self._rewrite_query(last_prompt, merged_messages)
+
+#             # document_context, references = await self._build_document_context(
+#             #     rewritten_prompt, limit=5
+#             # )
+#             # updated_prompt = f"{rewritten_prompt}\n\n{document_context}"
+
+#             # merged_messages_copy = self.prompt_builder.copy_messages(merged_messages)
+#             # merged_messages_copy = self._update_last_prompt(
+#             #     updated_prompt, merged_messages_copy
+#             # )
+
+#             # merged_messages = await self._append_assistant_reply(merged_messages_copy)
+
+#             if b64_file is not None:
+#                 merged_messages = await self._add_file_to_last_message(
+#                     merged_messages,
+#                     b64_file or payload.b64_file,
+#                     b64_file_type=b64_file_type or payload.b64_file_type,
+#                 )
+
+#             prompt, messages_with_context, references = await self._prepare_prompt(
+#                 messages=merged_messages
+#             )
+
+#             # TODO: change this to true once done testing
+#             generate_assistant_message = False
+#             print(
+#                 f"[rag service - testing - _update_chat_messages] generate_assistant_message: {generate_assistant_message}"
+#             )
+#             if generate_assistant_message:
+#                 assistant_message = await self._generate_assistant_message(
+#                     messages_with_context, references=references
+#                 )
+#                 merged_messages = [*merged_messages, assistant_message]
+
+#         return merged_messages
+
+#     async def _prepare_create_payload(
+#         self, payload: CreateChatRequest, b64_file: str | None = None
+#     ) -> CreateChatRequest:
+#         messages = await self._init_chat_messages(
+#             payload.messages,
+#             b64_file=payload.b64_file,
+#             b64_file_type=payload.b64_file_type,
+#         )
+
+#         return CreateChatRequest(
+#             email=payload.email,
+#             messages=messages,
+#             session_id=payload.session_id,
+#             site_url=payload.site_url,
+#         )
+
+#     async def _prepare_update_payload(
+#         self, existing_messages: list[ChatMessage], payload: UpdateChatRequest
+#     ) -> UpdateChatRequest:
+#         merged_messages = await self._update_chat_messages(
+#             existing_messages,
+#             payload,
+#             b64_file=payload.b64_file,
+#             b64_file_type=payload.b64_file_type,
+#         )
+
+#         return UpdateChatRequest(
+#             email=payload.email,
+#             messages=merged_messages,
+#             session_id=payload.session_id,
+#             site_url=payload.site_url,
+#         )
+
+#     async def process_prompt(
+#         self,
+#         payload: AddPromptRequest,
+#         existing_messages: list[ChatMessage] | None = None,
+#         generate_assistant_message: bool = settings.flag_generate_assistant_message,
+#         b64_file: str | None = None,
+#         b64_file_type: str | None = None,
+#     ) -> tuple[UpdateChatRequest, ChatMessageReferences]:
+#         existing_messages = existing_messages or []
+#         updated_messages = self.prompt_builder.copy_messages(existing_messages)
+
+#         # # add documents, context and or rewritten prompt
+#         # initial_prompt = f"{payload.prompt}"
+#         # rewritten_prompt = await self._rewrite_query(initial_prompt, existing_messages)
+
+#         # document_context, references = await self._build_document_context(rewritten_prompt, limit=5)
+#         # updated_prompt = f"{rewritten_prompt}\n\n{document_context}"
+
+#         file_id: str | None = None
+#         if b64_file is not None:
+#             file = await self.openai_service._create_file(
+#                 b64_file_str=b64_file, b64_file_type=b64_file_type
+#             )
+#             file_id = file.id
+
+#         # store the initial prompt, unchanged in payload, in the messages list
+#         new_message = self.prompt_builder.create_chat_message(
+#             role=ActorRole.USER,
+#             content=self.prompt_builder.build_prompt_content(payload, file_id=file_id),
+#         )
+#         updated_messages.append(new_message)
+
+#         # # use the updated prompt for the assistant reply
+#         # updated_messages = await self._append_assistant_reply(
+#         #     updated_messages,
+#         #     prompt=updated_prompt,
+#         #     # prompt=payload.prompt,
+#         #     file_url=payload.file_url,
+#         #     b64_file=payload.b64_file,
+#         #     file_type=payload.file_type,
+#         #     use_prev_conversation=True,
+#         # )
+
+#         prompt, messages_with_context, references = await self._prepare_prompt(
+#             # prompt=payload.prompt,
+#             messages=updated_messages
+#         )
+
+#         # raise ValueError(
+#         #     "Debugging: Check the values of prompt, messages_with_context, and references. \n"
+#         #     f"prompt: {prompt}, \n"
+#         #     # f"messages_with_context: {messages_with_context}, \n"
+#         #     f"references ids: {[ref.doc_id for ref in references.vector_documents] if references and references.vector_documents else None}, \n"
+#         # )
+
+#         # TODO: remove this to use the argument above
+#         generate_assistant_message = False
+#         print(
+#             f"[rag service - testing - process_prompt] generate_assistant_message: {generate_assistant_message}"
+#         )
+#         if generate_assistant_message:
+#             assistant_message = await self._generate_assistant_message(
+#                 messages_with_context, references=references
+#             )
+#             updated_messages = [*updated_messages, assistant_message]
+
+#         update_payload = UpdateChatRequest(messages=updated_messages)
+
+#         return update_payload, references
+
+#     # -----
+
+#     async def create_chat(
+#         self,
+#         payload: CreateChatRequest,
+#         *,
+#         # stream: bool = False,
+#         process_messages: bool = settings.flag_process_messages,
+#         save_to_db: bool = settings.flag_save_to_db,
+#     ) -> ChatResponse:
+
+#         prepared_payload = payload
+#         if process_messages:
+#             prepared_payload = await self._prepare_create_payload(payload)
+
+#         print(
+#             f"[rag service - testing - create_chat] process_messages: {process_messages}"
+#             f"[rag service - testing - create_chat] save_to_db: {save_to_db}"
+#         )
+
+#         if not save_to_db:
+#             mock_payload = {
+#                 **prepared_payload.model_dump(),
+#                 "id": "1000",
+#                 "created_at": datetime.datetime.now(tz=datetime.UTC),
+#                 "is_active": True,
+#                 "is_deleted": False,
+#             }
+#             mock_chat = ChatResponse.model_validate(mock_payload)
+#             return ChatService.cleanChatResponse(mock_chat)
+
+#         created_chat = await self.chat_service.create_chat(prepared_payload)
+#         return ChatService.cleanChatResponse(created_chat)
+
+#     async def _get_chat(
+#         self, chat_id: int | None = None, session_id: str | None = None
+#     ) -> ChatResponse:
+#         if chat_id is None and session_id is None:
+#             raise BadRequestException("Either chat_id or session_id must be provided.")
+
+#         if chat_id is not None:
+#             chat = await self.chat_service.get_chat_by_id(chat_id)
+#             if not chat:
+#                 raise BadRequestException(f"Chat with ID {chat_id} not found.")
+#             return chat
+
+#         if session_id is not None:
+#             chat = await self.chat_service.get_chat_by_session_id(session_id)
+#             if not chat:
+#                 raise BadRequestException(
+#                     f"Chat with session ID {session_id} not found."
+#                 )
+#             return chat
+
+#         raise RuntimeError("Unexpected error: unable to get chat.")
+
+#     async def update_chat(
+#         self,
+#         payload: UpdateChatRequest,
+#         chat_id: int | None = None,
+#         session_id: str | None = None,
+#         *,
+#         process_messages: bool = settings.flag_process_messages,
+#         save_to_db: bool = settings.flag_save_to_db,
+#     ) -> ChatResponse:
+#         existing_chat = await self._get_chat(chat_id, session_id)
+
+#         prepared_payload = payload
+#         if process_messages:
+#             prepared_payload = await self._prepare_update_payload(
+#                 existing_chat.messages, payload
+#             )
+
+#         if not save_to_db:
+#             mock_payload = {
+#                 **existing_chat.model_dump(),
+#                 **prepared_payload.model_dump(),
+#             }
+#             mock_chat = ChatResponse.model_validate(mock_payload)
+#             return ChatService.cleanChatResponse(mock_chat)
+
+#         updated_chat = await self.chat_service.update_chat(
+#             existing_chat.id, prepared_payload
+#         )
+#         return ChatService.cleanChatResponse(updated_chat)
+#         # return updated_chat
+
+#     async def update_chat_with_prompt(
+#         self,
+#         payload: AddPromptRequest,
+#         chat_id: int | None = None,
+#         session_id: str | None = None,
+#         *,
+#         process_messages: bool = settings.flag_process_messages,
+#         generate_assistant_message: bool = True,
+#         save_to_db: bool = settings.flag_save_to_db,
+#     ) -> tuple[ChatResponse, ChatMessageReferences]:
+#         existing_chat = await self._get_chat(chat_id, session_id)
+
+#         prepared_payload, references = await self.process_prompt(
+#             payload,
+#             existing_messages=existing_chat.messages,
+#             generate_assistant_message=generate_assistant_message,
+#             b64_file=payload.b64_file,
+#             b64_file_type=payload.file_type,
+#         )
+
+#         if not save_to_db:
+#             mock_payload = {
+#                 **existing_chat.model_dump(),
+#                 **prepared_payload.model_dump(),
+#             }
+#             mock_chat = ChatResponse.model_validate(mock_payload)
+#             return ChatService.cleanChatResponse(mock_chat)
+
+#         updated_chat = await self.chat_service.update_chat(
+#             existing_chat.id, prepared_payload
+#         )
+#         updated_chat = ChatService.cleanChatResponse(updated_chat)
+#         return updated_chat, references

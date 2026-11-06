@@ -71,16 +71,17 @@ async def lifespan(app: FastAPI):
         app.state.qdrant_service = None
         # app.state.document_processor_service = None
         raise
-
-    try:
-        app.state.entra_validator = EntraTokenValidator(
-            tenant_id=settings.AZURE_TENANT_ID,
-            # audience=settings.ENTRA_AUDIENCE,
-        )
-    except Exception as e:
-        print(f"Error initializing EntraTokenValidator: {e}")
-        app.state.entra_validator = None
-        raise
+    # ! important
+    # TODO: uncomment this before deployment
+    # try:
+    #     app.state.entra_validator = EntraTokenValidator(
+    #         tenant_id=settings.AZURE_TENANT_ID,
+    #         # audience=settings.ENTRA_AUDIENCE,
+    #     )
+    # except Exception as e:
+    #     print(f"Error initializing EntraTokenValidator: {e}")
+    #     app.state.entra_validator = None
+    #     raise
 
     yield
 

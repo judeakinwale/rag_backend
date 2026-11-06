@@ -61,9 +61,11 @@ class Settings(BaseSettings):
     # TODO: manage this across the multiple services using redis
     # ----- feature flags
     flag_environment: Literal["PROD", "DEV", "TEST"] = "DEV"
-    flag_process_messages: bool = False
+    flag_process_messages: bool = True
     flag_generate_assistant_message: bool = True
     flag_save_to_db: bool = False
+    # TODO: fix .gather socket hangup issue (especially in rag_service.py)
+    flag_use_asyncio_gather: bool = False
 
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",  # ".env"

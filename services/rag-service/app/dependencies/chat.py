@@ -1,12 +1,13 @@
-from fastapi import Depends, Request
 from app.core.container import container
 from app.core.db import get_db
-from rag_packages.shared.kafka.producer import KafkaProducer
 from app.producers.chat_producer import ChatProducer
 from app.repositories.chat_repository import ChatRepository
 from app.services.chat_service import ChatService
+from app.services.prompt_builder_service import PromptBuilder
 from app.services.rag_service import RagService
+from fastapi import Depends, Request
 from rag_packages.shared.ai.openai import OpenAIService
+from rag_packages.shared.kafka.producer import KafkaProducer
 from rag_packages.shared.processing.qdrant import QdrantService
 
 
@@ -25,6 +26,10 @@ def get_qdrant_service(request: Request) -> QdrantService:
 
 def get_openai_service(request: Request) -> OpenAIService:
     return request.app.state.openai_service
+
+
+def get_prompt_builder():
+    return PromptBuilder()
 
 
 def get_chat_service(

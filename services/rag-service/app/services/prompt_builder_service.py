@@ -1,11 +1,15 @@
-from datetime import UTC, datetime
 import mimetypes
 from collections.abc import Callable, Coroutine
+from datetime import UTC, datetime
 from typing import Any
-from openai.types import FilePurpose, FileObject
-from rag_packages.contracts.dto.chat import AddPromptRequest, ChatMessage
+
+from openai.types import FileObject, FilePurpose
+from rag_packages.contracts.dto.chat import (
+    AddPromptRequest,
+    ChatMessage,
+    ChatMessageReferences,
+)
 from rag_packages.shared.ai.openai import ActorRole
-from rag_packages.contracts.dto.chat import ChatMessageReferences
 
 
 class PromptBuilder:

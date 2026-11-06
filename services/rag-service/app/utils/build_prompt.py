@@ -1,5 +1,7 @@
 import datetime
+import yaml
 from rag_packages.contracts.dto.shared_dto import BaseDTO
+from rag_packages.contracts.dto.chat import ChatMessage
 from pydantic import Field
 
 
@@ -61,7 +63,11 @@ Be as detailed and accurate as possible with a focus on the most salient informa
     return updated_prompt
 
 
-def build_rewrite_prompt(user_prompt: str) -> str:
+def build_rewrite_prompt(
+    user_prompt: str, prev_conversation: list[ChatMessage] | None = None
+) -> str:
+    prev_snippet = f"Previous Conversation: \n{yaml.dump(prev_conversation)}"
+
     rewrite = f"""
 ## Convert the user's request into a JSON object for vector database search.
 
@@ -142,6 +148,8 @@ Return exactly:
 }}
 
 User request: {user_prompt}
+
+{prev_snippet if prev_conversation else ""}
 
 """
     return rewrite

@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 import orjson
@@ -13,8 +14,8 @@ from app.repositories.chat_repository import ChatRepository
 from pydantic import TypeAdapter
 from rag_packages.contracts.dto.chat import (
     ChatMessage,
-    ChatResponse,
     ChatMessageReferences,
+    ChatResponse,
     CreateChatRequest,
     UpdateChatRequest,
 )
@@ -41,24 +42,7 @@ from rag_packages.shared.utils.format import (
     normalize_timestamp_to_seconds,
 )
 
-# TODO: delete this after the container rebuild
-# class VectorDocumentFileMetadataJSON(VectorDocumentFileMetadata):
-#     last_modified: datetime | int | None = None  # timestamp in ms (13 digit int)
-
-
-# class VectorDocumentResponseJSON(VectorDocumentResponse):
-#     file_metadata: VectorDocumentFileMetadataJSON | None = None
-
-#     initiated_at: datetime | int | None = None  # timestamp in ms (13 digit int)
-#     completed_at: datetime | int | None = None  # timestamp in ms (13 digit int)
-
-
-# class DocumentResponseJSON(DocumentResponse):
-#     last_modified: datetime | int | None = None
-#     ingest_initiated_at: datetime | int | None = None
-#     prev_batch_ingest_init: datetime | int | None = None
-#     created_at: datetime | int | None = None
-#     updated_at: datetime | int | None = None
+logger = logging.getLogger(__name__)
 
 
 class ChatService:
@@ -130,9 +114,8 @@ class ChatService:
                 vector_doc,
                 exclude_keys=["headings", "captions", "tables", "figures"],  # "pages",
             )
-            # norm_vector_doc.details_dict = details_dict
+            norm_vector_doc.details_dict = details_dict
 
-            # force package reinstall
             # only the pages are somewhat relevant for this use case
             norm_vector_doc.details_markdown = dicts_to_markdown(
                 [details_dict],
@@ -148,20 +131,16 @@ class ChatService:
     def cleanChatResponse(
         chat_response: ChatResponse, show_references: BoolStr = BoolStr.FALSE
     ) -> ChatResponse:
-        print(f"show_references: {show_references}")
         # return the exact data received from the db; this has references which are rather large
         if show_references == BoolStr.TRUE:
             return chat_response
 
         for message in chat_response.messages:
             message.references = None
-            # message.references = ChatMessageReferences(
-            #     document_chunks=[], vector_documents=[], documents=[]
-            # )
 
         return chat_response
 
-    def _normalize_chat_message_datetimes(self, message: ChatMessage) -> ChatMessage:
+    def _normalize_message(self, message: ChatMessage) -> ChatMessage:
         message.timestamp = normalize_datetime_to_timestamp_ms(message.timestamp)
 
         if message.references:
@@ -175,12 +154,8 @@ class ChatService:
             ]
         return message
 
-    def _normalize_chat_messages(
-        self, messages: list[ChatMessage]
-    ) -> list[ChatMessage]:
-        norm_messages = [
-            self._normalize_chat_message_datetimes(message) for message in messages
-        ]
+    def normalize_chat_messages(self, messages: list[ChatMessage]) -> list[ChatMessage]:
+        norm_messages = [self._normalize_message(message) for message in messages]
         return norm_messages
 
     async def get_chats(
@@ -190,21 +165,15 @@ class ChatService:
             f"all:{params.model_dump_json()}" if params else "all"
         )
         cached = await r.get(cache_key)
-        print(f"cached: {cached}")
 
         if cached is not None:
             try:
                 chats, count = orjson.loads(cached)
-                # return [
-                #     cleanChatResponse(
-                #         ChatResponse.model_validate(chat), params.show_references
-                #     )
-                #     for chat in chats
-                # ], count
+
                 return [ChatResponse.model_validate(chat) for chat in chats], count
 
             except orjson.JSONDecodeError:
-                print(
+                logger.error(
                     f"[chat-service] Failed to decode cached data for key {cache_key}. Invalidating cache."
                 )
                 await r.delete(cache_key)  # invalidate corrupted cache
@@ -227,16 +196,17 @@ class ChatService:
         self, payloads: list[CreateChatRequest]
     ) -> list[ChatResponse] | None:
         for payload in payloads:
-            payload.messages = self._normalize_chat_messages(payload.messages)
+            payload.messages = self.normalize_chat_messages(payload.messages)
 
         async with self.uow:
             chats: list[Chat] = await self.repo.create_multiple(payloads)
 
             # ensure the chats are persisted and
             await self.uow.session.flush()
-            # access the persisted chats' ids before committing and sending the events
-            chat_ids = [chat.id for chat in chats]
-            print(f"Created chats with IDs: {chat_ids}")
+
+            # # access the persisted chats' ids before committing and sending the events
+            # chat_ids = [chat.id for chat in chats]
+            # logger.info(f"Created chats with IDs: {chat_ids}")
 
             events = [ChatCreatedEvent.model_validate(chat) for chat in chats]
             response = [ChatResponse.model_validate(chat) for chat in chats]
@@ -246,15 +216,12 @@ class ChatService:
         return response
 
     async def create_chat(self, payload: CreateChatRequest) -> ChatResponse:
-        payload.messages = self._normalize_chat_messages(payload.messages)
+        payload.messages = self.normalize_chat_messages(payload.messages)
         async with self.uow:
             chat: Chat = await self.repo.create(payload)
 
             # ensure the chat is persisted and
             await self.uow.session.flush()
-            # access the persisted chat's id before committing and sending the event
-            chat_id = chat.id
-            print(f"Created chat with ID: {chat_id}, details: {chat}")
 
             event = ChatCreatedEvent.model_validate(chat)
             response = ChatResponse.model_validate(chat)
@@ -314,9 +281,8 @@ class ChatService:
     async def update_chat(
         self, chat_id: int, payload: UpdateChatRequest
     ) -> ChatResponse | None:
-        payload.messages = self._normalize_chat_messages(payload.messages)
+        payload.messages = self.normalize_chat_messages(payload.messages)
         async with self.uow:
-            print(f"Updating chat with ID: {chat_id}, payload: {payload}")
             chat: Chat | None = await self.repo.update(chat_id, payload)
             if chat is None:
                 raise NotFoundException(f"Chat with id: {chat_id} not found.")

@@ -27,6 +27,7 @@ from rag_packages.contracts.dto.chat import (
     ChatAPIResponse,
     ChatListAPIResponse,
     ChatMessage,
+    ChatMessageReferences,
     ChatResponse,
     CreateChatRequest,
     SimpleChat,
@@ -41,10 +42,13 @@ router = APIRouter(prefix="/chats", tags=["Chats"])
 # ----- queries
 
 stream_query = Query(
-    False, description="If true, stream the response from the ai assistant"
+    True,
+    # False,
+    description="If true, stream the response from the ai assistant",
 )
 sse_query = Query(
-    False,
+    True,
+    # False,
     description="If true and stream is true, stream the response from the ai assistant as a server-sent event",
 )
 process_messages_query = Query(
@@ -146,11 +150,13 @@ async def test_chat(
         return responses.StreamingResponse(
             process_openai_response_stream(response, payload=payload, return_sse=sse),
             # media_type="application/x-ndjson", # for newline delimited json streaming
-            media_type="text/event-stream",  # same as media_type="text/plain"
-            # headers={
-            #     "Cache-Control": "no-cache",
-            #     "X-Accel-Buffering": "no",
-            # },
+            media_type="text/plain",  # for plain text
+            # media_type="text/event-stream",  # for server sent events
+            headers={
+                "Transfer-Encoding": "chunked",
+                "Cache-Control": "no-cache, no-transform",  # "no-cache",
+                "X-Accel-Buffering": "no",
+            },
         )
 
     response_text = response.output_text
@@ -203,34 +209,66 @@ async def create_chat(
     current_user: EntraUser = Depends(get_current_user),
 ) -> ChatAPIResponse | str:
 
-    # if stream:
-    #     response = await rag_service.create_response(body.prompt, stream=stream)
-        
-    #     payload = None
-    #     if sse:
-    #         payload = UpdateChatRequest(**body.model_dump())
-            
-    #     create_wrapper = partial(
-    #         rag_service.create_chat, process_messages=process_messages
-    #     )
-        
-    #     # create_wrapper = lambda body: rag_service.create_chat(
-    #     #     body, process_messages=process_messages
-    #     # )
-            
-    #     return responses.StreamingResponse(
-    #         process_openai_response_stream(
-    #             response,
-    #             payload=payload,
-    #             return_sse=sse,
-    #             process_completion_fn=create_wrapper,
-    #         ),
-    #         media_type="text/event-stream",
-    #     )
+    if stream:
+        # TODO: implement create_chat_response in rag_service
+        # # response: AsyncStream[ResponseStreamEvent], references: ChatMessageReferences
+        # response, references = await rag_service.create_chat_response(
+        #     body.messages, stream=stream
+        # )
+
+        # response_all = await rag_service.create_chat(
+        response, references = await rag_service.create_chat(
+            body, process_messages=process_messages, stream=stream
+        )
+
+        print(
+            f"[chats api - testing - create-chat] response: {response}, stream: {stream},  type: {type(response)}"
+        )
+
+        # return str(response_all)
+
+        payload = CreateChatRequest(**body.model_dump())
+        # if sse:
+        #     payload = UpdateChatRequest(**body.model_dump())
+
+        async def create_wrapper(payload: CreateChatRequest, complete_prompt: str):
+            # ? the assistant message is created and added to messages in process_openai_response_stream
+            payload.messages = rag_service._add_references_to_last_message(
+                payload.messages, references
+            )
+
+            return await rag_service.create_chat(
+                payload, process_messages=False, stream=False
+            )
+
+        # create_wrapper = partial(
+        #     rag_service.create_chat, process_messages=process_messages
+        # )
+        # create_wrapper = lambda body: rag_service.create_chat(
+        #     body, process_messages=process_messages
+        # )
+
+        return responses.StreamingResponse(
+            process_openai_response_stream(
+                response,
+                payload=payload,
+                return_sse=sse,
+                process_completion_fn=create_wrapper,
+            ),
+            # "text/plain" for plain text and "text/event-stream" for server sent events
+            media_type="text/event-stream" if sse else "text/plain",
+            headers={
+                "Transfer-Encoding": "chunked",
+                "Cache-Control": "no-cache, no-transform",  # "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    print(f"[chats api - testing - create_chat] body: {body}, stream: {stream}")
 
     # working non streaming code
     created_chat = await rag_service.create_chat(
-        body, process_messages=process_messages
+        body, process_messages=process_messages, stream=stream
     )
 
     return ChatAPIResponse(
@@ -320,22 +358,43 @@ update_kwargs = {
 async def update_chat(
     chat_id: int,
     body: UpdateChatRequest,
+    stream: bool = stream_query,
+    sse: bool = sse_query,
+    process_messages: bool = process_messages_query,
     rag_service: RagService = Depends(get_rag_service),
     service: ChatService = Depends(get_chat_service),
     current_user: EntraUser = Depends(get_current_user),
-    skip_processing: bool = Query(
-        False, description="If true, skip processing the chat messages before creation"
-    ),
 ) -> ChatAPIResponse:
-    # if skip_processing:
-    #     updated_chat = await service.update_chat(chat_id, body)
-    # else:
-    #     updated_chat = await rag_service.update_chat(chat_id, body)
 
-    # # updated_chat = await service.update_chat(chat_id, body)
+    if stream:
+        response, references = await rag_service.update_chat(
+            body, chat_id=chat_id, process_messages=process_messages, stream=stream
+        )
+        # print_msg = f"[chats api - testing - update-chat] response: {response}, stream: {stream},  type: {type(response)}"
+        # print(print_msg)
+
+        update_wrapper = rag_service.get_update_response_completion_wrapper(
+            chat_id, references
+        )
+
+        return responses.StreamingResponse(
+            process_openai_response_stream(
+                response,
+                payload=body,
+                return_sse=sse,
+                process_completion_fn=update_wrapper,
+            ),
+            # "text/plain" for plain text and "text/event-stream" for server sent events
+            media_type="text/event-stream" if sse else "text/plain",
+            headers={
+                "Transfer-Encoding": "chunked",
+                "Cache-Control": "no-cache, no-transform",  # "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     updated_chat = await rag_service.update_chat(
-        body, chat_id=chat_id, process_messages=not skip_processing
+        body, chat_id=chat_id, process_messages=process_messages, stream=stream
     )
 
     return ChatAPIResponse(
