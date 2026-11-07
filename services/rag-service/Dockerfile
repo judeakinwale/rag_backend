@@ -8,7 +8,8 @@ COPY requirements.txt .
 # RUN apt update
 # RUN apt install -y git
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
+# RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 

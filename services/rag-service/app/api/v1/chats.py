@@ -66,8 +66,8 @@ process_messages_query = Query(
 async def test_chat_stream(
     body: SimpleChat,
     sse: bool = sse_query,
-    # service: OpenAIService = Depends(get_openai_service),
-    # current_user: EntraUser = Depends(get_current_user),
+    # service: Annotated[OpenAIService, Depends(get_openai_service)],
+    # current_user: Annotated[EntraUser, Depends(get_current_user)],
 ) -> SimpleChat | str:
 
     async def generate_response(prompt: str) -> AsyncGenerator[Any, str]:
@@ -128,10 +128,10 @@ async def test_chat_stream(
 )
 async def test_chat(
     body: SimpleChat,
+    service: Annotated[OpenAIService, Depends(get_openai_service)],
+    current_user: Annotated[EntraUser, Depends(get_current_user)],
     stream: bool = stream_query,
     sse: bool = sse_query,
-    service: OpenAIService = Depends(get_openai_service),
-    current_user: EntraUser = Depends(get_current_user),
 ) -> SimpleChat | str:
     response = await service.create_response(body.prompt, stream=stream)
 
@@ -174,9 +174,9 @@ async def test_chat(
 )
 async def get_chats(
     query: Annotated[QueryParams, Query()],
-    service: ChatService = Depends(get_chat_service),
-    producer: ChatProducer = Depends(get_chat_producer),
-    current_user: EntraUser = Depends(get_current_user),
+    service: Annotated[ChatService, Depends(get_chat_service)],
+    producer: Annotated[ChatProducer, Depends(get_chat_producer)],
+    current_user: Annotated[EntraUser, Depends(get_current_user)],
 ) -> ChatListAPIResponse:
     chats, count = await service.get_chats(query)
 
@@ -198,12 +198,12 @@ async def get_chats(
 async def create_chat(
     request: Request,
     body: CreateChatRequest,
+    service: Annotated[ChatService, Depends(get_chat_service)],
+    rag_service: Annotated[RagService, Depends(get_rag_service)],
+    current_user: Annotated[EntraUser, Depends(get_current_user)],
     stream: bool = stream_query,
     sse: bool = sse_query,
     process_messages: bool = process_messages_query,
-    service: ChatService = Depends(get_chat_service),
-    rag_service: RagService = Depends(get_rag_service),
-    current_user: EntraUser = Depends(get_current_user),
 ) -> ChatAPIResponse | str:
 
     if stream:
@@ -248,9 +248,9 @@ async def create_chat(
 )
 async def get_chat(
     chat_id: int,
-    service: ChatService = Depends(get_chat_service),
+    service: Annotated[ChatService, Depends(get_chat_service)],
     # service: Annotated[ChatService, Depends(get_chat_service)],
-    current_user: EntraUser = Depends(get_current_user),
+    current_user: Annotated[EntraUser, Depends(get_current_user)],
 ) -> ChatAPIResponse:
     chat = await service.get_chat_by_id(chat_id)
 
@@ -274,12 +274,12 @@ update_kwargs = {
 async def update_chat(
     chat_id: int,
     body: UpdateChatRequest,
+    rag_service: Annotated[RagService, Depends(get_rag_service)],
+    service: Annotated[ChatService, Depends(get_chat_service)],
+    current_user: Annotated[EntraUser, Depends(get_current_user)],
     stream: bool = stream_query,
     sse: bool = sse_query,
     process_messages: bool = process_messages_query,
-    rag_service: RagService = Depends(get_rag_service),
-    service: ChatService = Depends(get_chat_service),
-    current_user: EntraUser = Depends(get_current_user),
 ) -> ChatAPIResponse:
 
     if stream:
@@ -330,13 +330,13 @@ update_with_prompt_kwargs = {
 async def update_chat_with_prompt(
     request: Request,
     body: AddPromptRequest,
+    rag_service: Annotated[RagService, Depends(get_rag_service)],
+    service: Annotated[ChatService, Depends(get_chat_service)],
+    current_user: Annotated[EntraUser, Depends(get_current_user)],
     chat_id: int | None = None,
     stream: bool = stream_query,
     sse: bool = sse_query,
     process_messages: bool = process_messages_query,
-    rag_service: RagService = Depends(get_rag_service),
-    service: ChatService = Depends(get_chat_service),
-    current_user: EntraUser = Depends(get_current_user),
 ) -> ChatAPIResponse:  # APIResponse:
 
     payload = rag_service.convert_add_prompt_request_to_update_chat_request(body)
@@ -389,8 +389,8 @@ async def update_chat_with_prompt(
 )
 async def delete_chat(
     chat_id: int,
-    service: ChatService = Depends(get_chat_service),
-    current_user: EntraUser = Depends(get_current_user),
+    service: Annotated[ChatService, Depends(get_chat_service)],
+    current_user: Annotated[EntraUser, Depends(get_current_user)],
 ) -> ChatAPIResponse:
     # deleted_chat = await service.delete_chat(chat_id)
 
