@@ -33,6 +33,7 @@ from rag_packages.contracts.dto.chat import (
     SimpleChat,
     UpdateChatRequest,
 )
+from rag_packages.contracts.types.shared_types import BoolStr
 from rag_packages.shared.ai.openai import ActorRole
 from rag_packages.shared.database.query import QueryParams
 from rag_packages.shared.exception.exception import BadRequestException
@@ -52,6 +53,10 @@ sse_query = Query(
 process_messages_query = Query(
     settings.flag_process_messages,
     description="If true, process the chat messages before creation",
+)
+show_references_query = Query(
+    BoolStr.FALSE,
+    description="If true, show the chat message references",
 )
 
 
@@ -251,8 +256,9 @@ async def get_chat(
     service: Annotated[ChatService, Depends(get_chat_service)],
     # service: Annotated[ChatService, Depends(get_chat_service)],
     current_user: Annotated[EntraUser, Depends(get_current_user)],
+    show_references: BoolStr = show_references_query,
 ) -> ChatAPIResponse:
-    chat = await service.get_chat_by_id(chat_id)
+    chat = await service.get_chat_by_id(chat_id, show_references)
 
     return ChatAPIResponse(
         success=True,
@@ -280,6 +286,7 @@ async def update_chat(
     stream: bool = stream_query,
     sse: bool = sse_query,
     process_messages: bool = process_messages_query,
+    show_references: BoolStr = show_references_query,
 ) -> ChatAPIResponse:
 
     if stream:
@@ -337,6 +344,7 @@ async def update_chat_with_prompt(
     stream: bool = stream_query,
     sse: bool = sse_query,
     process_messages: bool = process_messages_query,
+    show_references: BoolStr = show_references_query,
 ) -> ChatAPIResponse:  # APIResponse:
 
     payload = rag_service.convert_add_prompt_request_to_update_chat_request(body)

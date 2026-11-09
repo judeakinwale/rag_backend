@@ -830,6 +830,9 @@ class RagService:
             payload.messages = messages
 
         if not save_to_db:
+            info_msg = "[RagService - create_chat] Skipping saving to the database."
+            logger.info(info_msg)
+
             mock_payload = {
                 **payload.model_dump(),
                 "id": "0000",
@@ -954,6 +957,9 @@ class RagService:
             payload.messages = messages
 
         if not save_to_db:
+            info_msg = "[RagService - update_chat] Skipping saving to the database."
+            logger.info(info_msg)
+
             mock_payload = {
                 **existing_chat.model_dump(),
                 **payload.model_dump(),

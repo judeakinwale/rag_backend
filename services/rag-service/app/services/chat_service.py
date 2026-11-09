@@ -209,7 +209,10 @@ class ChatService:
             # logger.info(f"Created chats with IDs: {chat_ids}")
 
             events = [ChatCreatedEvent.model_validate(chat) for chat in chats]
-            response = [ChatResponse.model_validate(chat) for chat in chats]
+            response = [
+                ChatService.cleanChatResponse(ChatResponse.model_validate(chat))
+                for chat in chats
+            ]
 
         for event in events:
             await self.producer.chat_created(event)
@@ -229,7 +232,9 @@ class ChatService:
         await self.producer.chat_created(event)
         return response
 
-    async def get_chat_by_id(self, chat_id: int) -> ChatResponse | None:
+    async def get_chat_by_id(
+        self, chat_id: int, show_references: BoolStr = BoolStr.FALSE
+    ) -> ChatResponse | None:
         cache_key = generate_cache_key(str(chat_id))
         cached = await r.get(cache_key)
 
@@ -243,9 +248,11 @@ class ChatService:
         valid_chat = ChatResponse.model_validate(chat)
 
         await r.set(cache_key, valid_chat.model_dump_json())
-        return valid_chat
+        return ChatService.cleanChatResponse(valid_chat, show_references)
 
-    async def get_chat_by_session_id(self, session_id: str) -> ChatResponse | None:
+    async def get_chat_by_session_id(
+        self, session_id: str, show_references: BoolStr = BoolStr.FALSE
+    ) -> ChatResponse | None:
         cache_key = generate_cache_key(f"session:{session_id}")
         cached = await r.get(cache_key)
 
@@ -259,9 +266,11 @@ class ChatService:
         valid_chat = ChatResponse.model_validate(chat)
 
         await r.set(cache_key, valid_chat.model_dump_json())
-        return valid_chat
+        return ChatService.cleanChatResponse(valid_chat, show_references)
 
-    async def get_last_user_chat(self, email: str) -> ChatResponse | None:
+    async def get_last_user_chat(
+        self, email: str, show_references: BoolStr = BoolStr.FALSE
+    ) -> ChatResponse | None:
         cache_key = generate_cache_key(f"email:{email}:last")
         cached = await r.get(cache_key)
 
@@ -276,10 +285,13 @@ class ChatService:
 
         # short expiry as this becomes stale fast
         await r.set(cache_key, valid_chat.model_dump_json(), ex=10)
-        return valid_chat
+        return ChatService.cleanChatResponse(valid_chat, show_references)
 
     async def update_chat(
-        self, chat_id: int, payload: UpdateChatRequest
+        self,
+        chat_id: int,
+        payload: UpdateChatRequest,
+        show_references: BoolStr = BoolStr.FALSE,
     ) -> ChatResponse | None:
         payload.messages = self.normalize_chat_messages(payload.messages)
         async with self.uow:
@@ -293,7 +305,7 @@ class ChatService:
         event.updated = list(payload.model_dump(exclude_unset=True).keys())
         await self.producer.chat_updated(event)
 
-        return response
+        return ChatService.cleanChatResponse(response, show_references)
 
     async def delete_chat(self, chat_id: int) -> ChatResponse | None:
         async with self.uow:
