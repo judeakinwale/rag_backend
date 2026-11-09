@@ -44,7 +44,13 @@ class ChatRepository:
         self.db.add(chat)
         return chat
 
-    async def get_by_id(self, chat_id: int) -> Chat | None:
+    async def get_by_id(self, chat_id: int, for_update: bool = False) -> Chat | None:
+        if for_update:
+            stmt = select(Chat).where(Chat.id == chat_id).with_for_update()
+
+            result = await self.db.execute(stmt)
+            return result.scalar_one_or_none()
+
         chat = await self.db.get(Chat, chat_id)
         return chat
 
@@ -78,6 +84,10 @@ class ChatRepository:
         updates = payload.model_dump()
 
         for field, value in updates.items():
+            # if isinstance(value, list):
+            #     print(f"[ChatRepository - update] field: {field}, value: {value}")
+            #     # continue
+
             setattr(chat, field, value)
 
         return chat

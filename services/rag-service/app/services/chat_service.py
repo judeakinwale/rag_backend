@@ -247,7 +247,7 @@ class ChatService:
 
         valid_chat = ChatResponse.model_validate(chat)
 
-        await r.set(cache_key, valid_chat.model_dump_json())
+        await r.set(cache_key, valid_chat.model_dump_json(), ex=2)
         return ChatService.cleanChatResponse(valid_chat, show_references)
 
     async def get_chat_by_session_id(
@@ -265,7 +265,7 @@ class ChatService:
 
         valid_chat = ChatResponse.model_validate(chat)
 
-        await r.set(cache_key, valid_chat.model_dump_json())
+        await r.set(cache_key, valid_chat.model_dump_json(), ex=2)
         return ChatService.cleanChatResponse(valid_chat, show_references)
 
     async def get_last_user_chat(

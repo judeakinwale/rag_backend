@@ -589,6 +589,11 @@ class RagService:
 
         return messages
 
+    def _remove_references(self, message: ChatMessage) -> ChatMessage:
+        message.references = ChatMessageReferences()
+        # message.references = []
+        return message
+
     # ? this mutates the messages array provided
     async def _prepare_prompt(
         self,
@@ -843,6 +848,9 @@ class RagService:
             mock_chat = ChatResponse.model_validate(mock_payload)
             return ChatService.cleanChatResponse(mock_chat)
 
+        # -----
+        payload.messages = [self._remove_references(msg) for msg in payload.messages]
+
         created_chat = await self.chat_service.create_chat(payload)
         return ChatService.cleanChatResponse(created_chat)
 
@@ -966,6 +974,10 @@ class RagService:
             }
             mock_chat = ChatResponse.model_validate(mock_payload)
             return ChatService.cleanChatResponse(mock_chat)
+
+        # -----
+        payload.messages = [self._remove_references(msg) for msg in payload.messages]
+        payload.new_messages = []
 
         updated_chat = await self.chat_service.update_chat(existing_chat.id, payload)
         return ChatService.cleanChatResponse(updated_chat)
