@@ -972,8 +972,9 @@ class RagService:
 
     def get_update_response_completion_wrapper(
         self,
-        chat_id: int,
-        references: ChatMessageReferences,
+        chat_id: int | None = None,
+        session_id: str | None = None,
+        references: ChatMessageReferences | None = None,
     ) -> ResponseCompletionFN:
         async def update_wrapper(payload: UpdateChatRequest, complete_prompt: str):
             # ? the assistant message is created and added to messages in process_openai_response_stream
@@ -982,7 +983,11 @@ class RagService:
             )
 
             return await self.update_chat(
-                payload, chat_id=chat_id, process_messages=False, stream=False
+                payload,
+                chat_id=chat_id,
+                session_id=session_id,
+                process_messages=False,
+                stream=False,
             )
 
         return update_wrapper

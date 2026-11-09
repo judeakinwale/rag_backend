@@ -294,7 +294,7 @@ async def update_chat(
             body, chat_id=chat_id, process_messages=process_messages, stream=stream
         )
         update_wrapper = rag_service.get_update_response_completion_wrapper(
-            chat_id, references
+            chat_id, references=references
         )
 
         return responses.StreamingResponse(
@@ -358,7 +358,7 @@ async def update_chat_with_prompt(
             stream=stream,
         )
         update_wrapper = rag_service.get_update_response_completion_wrapper(
-            chat_id, references
+            chat_id, session_id=body.session_id, references=references
         )
 
         return responses.StreamingResponse(
@@ -378,7 +378,11 @@ async def update_chat_with_prompt(
         )
 
     updated_chat = await rag_service.update_chat(
-        payload, chat_id=chat_id, process_messages=process_messages, stream=stream
+        payload,
+        chat_id=chat_id,
+        session_id=body.session_id,
+        process_messages=process_messages,
+        stream=stream,
     )
 
     return ChatAPIResponse(
